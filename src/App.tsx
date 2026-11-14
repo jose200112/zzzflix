@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import NavBar from './components/NavBar'
 import TitleList from './components/TitleList'
 import { titles } from './data/titles'
+import logo from './assets/logo-zzzflix.png'
 
 const STORAGE_KEY = 'zzzflix:favorites'
 
@@ -22,9 +23,7 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(favoriteIds))
-    } catch {
-      // Storage not available (private mode, quota exceeded): ignore
-    }
+    } catch {}
   }, [favoriteIds])
 
   const toggleFavorite = (id: number) => {
@@ -36,12 +35,14 @@ function App() {
   }
 
   const favorites = titles.filter((t) => favoriteIds.includes(t.id))
+  const movies = titles.filter((t) => t.type === 'movie')
+  const series = titles.filter((t) => t.type === 'series')
 
   return (
     <BrowserRouter>
       <NavBar />
       <main>
-        <h1>zzzflix</h1>
+        <img src={logo} alt="zzzflix" className="hero-logo" />
         <Routes>
           <Route
             path="/"
@@ -65,6 +66,26 @@ function App() {
                   onToggleFavorite={toggleFavorite}
                 />
               )
+            }
+          />
+                    <Route
+            path="/peliculas"
+            element={
+              <TitleList
+                items={movies}
+                favoriteIds={favoriteIds}
+                onToggleFavorite={toggleFavorite}
+              />
+            }
+          />
+          <Route
+            path="/series"
+            element={
+              <TitleList
+                items={series}
+                favoriteIds={favoriteIds}
+                onToggleFavorite={toggleFavorite}
+              />
             }
           />
         </Routes>

@@ -109,3 +109,27 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+body {
+  background: #000;
+  color: #f1eaff;
+}
+
+a {
+  color: #c9a8f5;
+}
+
+.hero-logo {
+  width: 260px;
+  max-width: 80%;
+  height: auto;
+}
+
+h1,
+h2 {
+  color: #f1eaff;
+}
+
+#root {
+  border-inline: 1px solid #2a1f3d;
+}
