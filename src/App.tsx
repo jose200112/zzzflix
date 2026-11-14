@@ -4,6 +4,7 @@ import NavBar from './components/NavBar'
 import TitleList from './components/TitleList'
 import { titles } from './data/titles'
 import logo from './assets/logo-zzzflix.png'
+import TitleDetail from './pages/TitleDetail'
 
 const STORAGE_KEY = 'zzzflix:favorites'
 
@@ -23,7 +24,7 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(favoriteIds))
-    } catch {}
+    } catch { }
   }, [favoriteIds])
 
   const toggleFavorite = (id: number) => {
@@ -68,7 +69,7 @@ function App() {
               )
             }
           />
-                    <Route
+          <Route
             path="/peliculas"
             element={
               <TitleList
@@ -87,6 +88,10 @@ function App() {
                 onToggleFavorite={toggleFavorite}
               />
             }
+          />
+          <Route
+            path="/titulo/:id"
+            element={<TitleDetail favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />}
           />
         </Routes>
       </main>
