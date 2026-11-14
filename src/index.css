@@ -133,3 +133,101 @@ h2 {
 #root {
   border-inline: 1px solid #2a1f3d;
 }
+
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+  background: #000;
+  border-bottom: 1px solid #2a1f3d;
+}
+
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.nav-links a {
+  padding: 8px 14px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: #c9a8f5;
+  transition: background 0.15s;
+}
+
+.nav-links a:hover {
+  background: #1c1430;
+}
+
+.nav-links a.active {
+  background: #7c4dcc;
+  color: #fff;
+}
+
+.title-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 24px;
+}
+
+.title-card {
+  background: #120c1f;
+  border: 1px solid #2a1f3d;
+  border-radius: 16px;
+  padding: 20px 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.title-card:hover {
+  transform: translateY(-4px);
+  border-color: #7c4dcc;
+}
+
+.title-card h2 {
+  font-size: 1.1rem;
+  margin: 0 0 6px;
+}
+
+.title-card .year {
+  margin: 0 0 14px;
+  color: #a99bc7;
+}
+
+.fav-btn {
+  background: transparent;
+  color: #c9a8f5;
+  border: 1px solid #7c4dcc;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.fav-btn:hover {
+  background: #1c1430;
+}
+
+.fav-btn.active {
+  background: #7c4dcc;
+  color: #fff;
+}
+
+#root {
+  border-inline: none;
+}
+
+.title-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.fav-btn {
+  margin-top: auto;
+}

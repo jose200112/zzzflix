@@ -9,7 +9,7 @@ type TitleListProps = {
 
 function TitleList({ items, favoriteIds, onToggleFavorite }: TitleListProps) {
   return (
-    <>
+    <div className="title-grid">
       {items.map((t) => (
         <TitleCard
           key={t.id}
@@ -19,7 +19,7 @@ function TitleList({ items, favoriteIds, onToggleFavorite }: TitleListProps) {
           onToggleFavorite={() => onToggleFavorite(t.id)}
         />
       ))}
-    </>
+    </div>
   )
 }
 

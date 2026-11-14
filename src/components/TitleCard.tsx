@@ -7,10 +7,13 @@ type TitleCardProps = {
 
 function TitleCard({ title, year, isFavorite, onToggleFavorite }: TitleCardProps) {
   return (
-    <article>
+    <article className="title-card">
       <h2>{title}</h2>
-      <p>{year}</p>
-      <button onClick={onToggleFavorite}>
+      <p className="year">{year}</p>
+      <button
+        className={`fav-btn ${isFavorite ? 'active' : ''}`}
+        onClick={onToggleFavorite}
+      >
         {isFavorite ? '★ Favorito' : '☆ Añadir a favoritos'}
       </button>
     </article>
