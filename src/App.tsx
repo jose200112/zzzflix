@@ -51,6 +51,10 @@ function App() {
   const movies = titles.filter((t) => t.type === 'movie')
   const series = titles.filter((t) => t.type === 'series')
 
+  const ranking = [...titles].sort(
+  (a, b) => b.sleepScore - a.sleepScore || (b.runtime ?? 0) - (a.runtime ?? 0)
+)
+
   if (loading) return <p>Cargando catálogo…</p>
   if (error) return <p>No se pudo cargar el catálogo. Inténtalo más tarde.</p>
 
@@ -114,6 +118,16 @@ function App() {
               />
             }
           />
+          <Route
+  path="/soporiferas"
+  element={
+    <TitleList
+      items={ranking}
+      favoriteIds={favoriteIds}
+      onToggleFavorite={toggleFavorite}
+    />
+  }
+/>
         </Routes>
       </main>
       <Footer />
