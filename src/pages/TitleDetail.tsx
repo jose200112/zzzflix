@@ -1,12 +1,14 @@
 import { Link, useParams } from 'react-router-dom'
-import { titles } from '../data/titles'
+import type { Title } from '../data/titles'
+import SleepRating from '../components/SleepRating'
 
 type TitleDetailProps = {
+  titles: Title[]
   favoriteIds: number[]
   onToggleFavorite: (id: number) => void
 }
 
-function TitleDetail({ favoriteIds, onToggleFavorite }: TitleDetailProps) {
+function TitleDetail({ titles, favoriteIds, onToggleFavorite }: TitleDetailProps) {
   const { id } = useParams()
   const title = titles.find((t) => t.id === Number(id))
 
@@ -24,19 +26,33 @@ function TitleDetail({ favoriteIds, onToggleFavorite }: TitleDetailProps) {
   return (
     <section className="detail">
       <Link to="/" className="back-link">← Volver</Link>
-      <h1>{title.title}</h1>
-      <p className="year">
-        {title.year} · {title.type === 'movie' ? 'Película' : 'Serie'}
-      </p>
-      <button
-        className={`fav-btn ${isFavorite ? 'active' : ''}`}
-        onClick={() => onToggleFavorite(title.id)}
-      >
-        {isFavorite ? '★ Favorito' : '☆ Añadir a favoritos'}
-      </button>
 
-      <h2>Reseña</h2>
-      <p>Próximamente: aquí irá la reseña.</p>
+      <div className="detail-header">
+        {title.posterUrl && (
+          <img
+            className="detail-poster"
+            src={title.posterUrl}
+            alt={`Póster de ${title.title}`}
+          />
+        )}
+        <div>
+          <h1>{title.title}</h1>
+          <p className="year">
+            {title.year} · {title.type === 'movie' ? 'Película' : 'Serie'}
+            {title.runtime ? ` · ${title.runtime} min` : ''}
+          </p>
+          <SleepRating score={title.sleepScore} />
+          <button
+            className={`fav-btn ${isFavorite ? 'active' : ''}`}
+            onClick={() => onToggleFavorite(title.id)}
+          >
+            {isFavorite ? '★ Favorito' : '☆ Añadir a favoritos'}
+          </button>
+        </div>
+      </div>
+
+      <h2>Sinopsis</h2>
+      <p>{title.overview || 'Sin sinopsis disponible.'}</p>
 
       <h2>Comentarios</h2>
       <p>Próximamente: aquí irán los comentarios.</p>

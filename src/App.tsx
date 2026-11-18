@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import NavBar from './components/NavBar'
 import TitleList from './components/TitleList'
-import { titles } from './data/titles'
 import logo from './assets/logo-zzzflix.png'
 import TitleDetail from './pages/TitleDetail'
 import Footer from './components/Footer'
+import type { Title } from './data/titles'
+import { loadCatalog } from './api/catalog'
 
 const STORAGE_KEY = 'zzzflix:favorites'
 
@@ -21,12 +22,22 @@ function loadFavorites(): number[] {
 
 function App() {
   const [favoriteIds, setFavoriteIds] = useState<number[]>(loadFavorites)
+  const [titles, setTitles] = useState<Title[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(favoriteIds))
     } catch { }
   }, [favoriteIds])
+
+  useEffect(() => {
+    loadCatalog()
+      .then(setTitles)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
+  }, [])
 
   const toggleFavorite = (id: number) => {
     setFavoriteIds((current) =>
@@ -39,6 +50,9 @@ function App() {
   const favorites = titles.filter((t) => favoriteIds.includes(t.id))
   const movies = titles.filter((t) => t.type === 'movie')
   const series = titles.filter((t) => t.type === 'series')
+
+  if (loading) return <p>Cargando catálogo…</p>
+  if (error) return <p>No se pudo cargar el catálogo. Inténtalo más tarde.</p>
 
   return (
     <BrowserRouter>
@@ -92,7 +106,13 @@ function App() {
           />
           <Route
             path="/titulo/:id"
-            element={<TitleDetail favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} />}
+            element={
+              <TitleDetail
+                titles={titles}
+                favoriteIds={favoriteIds}
+                onToggleFavorite={toggleFavorite}
+              />
+            }
           />
         </Routes>
       </main>
