@@ -323,3 +323,17 @@ h2 {
   width: 220px;
   border-radius: 12px;
 }
+
+.detail {
+  max-width: 900px;
+}
+
+.detail-header > div {
+  flex: 1 1 260px;
+}
+
+.detail h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+  margin: 0 0 8px;
+}

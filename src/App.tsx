@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import NavBar from './components/NavBar'
 import TitleList from './components/TitleList'
-import logo from './assets/logo-zzzflix.png'
 import TitleDetail from './pages/TitleDetail'
 import Footer from './components/Footer'
 import type { Title } from './data/titles'
 import { loadCatalog } from './api/catalog'
+import HeroLogo from './components/HeroLogo'
 
 const STORAGE_KEY = 'zzzflix:favorites'
 
@@ -62,7 +62,7 @@ function App() {
     <BrowserRouter>
       <NavBar />
       <main>
-        <img src={logo} alt="zzzflix" className="hero-logo" />
+        <HeroLogo />
         <Routes>
           <Route
             path="/"
