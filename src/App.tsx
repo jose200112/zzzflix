@@ -5,6 +5,7 @@ import TitleList from './components/TitleList'
 import { titles } from './data/titles'
 import logo from './assets/logo-zzzflix.png'
 import TitleDetail from './pages/TitleDetail'
+import Footer from './components/Footer'
 
 const STORAGE_KEY = 'zzzflix:favorites'
 
@@ -95,6 +96,7 @@ function App() {
           />
         </Routes>
       </main>
+      <Footer />
     </BrowserRouter>
   )
 }
