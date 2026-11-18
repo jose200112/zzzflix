@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom'
-import logo from '../assets/logo-zzzflix.png'
+import logo from '../assets/logo-zzzflix.webp'
 
 function HeroLogo() {
   const { pathname } = useLocation()
