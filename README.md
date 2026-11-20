@@ -25,6 +25,7 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 | TLS | AWS Certificate Manager |
 | Security | AWS WAF (rate limiting, IP reputation), CloudFront security headers |
 | Cost control | AWS Budgets alerts |
+| CI/CD | GitHub Actions with OIDC (no stored AWS keys) |
 | DNS | Cloudflare |
 | Infrastructure as code | Terraform (AWS + Cloudflare providers) |
 
@@ -39,6 +40,7 @@ flowchart LR
   S3[(S3 bucket<br/>private, eu-north-1)]
   ACM[ACM certificate<br/>us-east-1]
   TMDB[TMDB API]
+  GHA[GitHub Actions<br/>build and deploy]
 
   U -->|1. resolves| DNS
   DNS -->|CNAME| CF
@@ -47,6 +49,8 @@ flowchart LR
   ACM -.->|attached to| CF
   WAF -.->|protects| CF
   U -->|3. catalog data| TMDB
+  GHA -->|OIDC role, s3 sync| S3
+  GHA -->|invalidate cache| CF
 ```
 
 The site is 100% static: there is no server to run or patch. The browser downloads the compiled app from CloudFront and then calls TMDB directly for the catalog data.
@@ -60,6 +64,7 @@ The site is 100% static: there is no server to run or patch. The browser downloa
 - **WAF.** A per-IP rate limit and the AWS IP reputation list in front of CloudFront. The Free plan allows up to 5 rules and no CAPTCHA, so the CAPTCHA is reserved for the future comments form.
 - **Security headers.** HSTS, `X-Content-Type-Options` and `X-Frame-Options` through the managed CloudFront response headers policy.
 - **Cost guardrail.** An AWS Budgets alert emails me when the account forecast or spend approaches the monthly threshold.
+- **Keyless CI/CD.** GitHub Actions deploys on every push to `main` using OIDC: AWS trusts GitHub's identity token and hands out short-lived credentials, so no AWS keys are stored in GitHub. The IAM role is scoped to this repository and branch (using GitHub's immutable subject claim, which includes the owner and repository IDs) and can only write to the site bucket and invalidate this distribution.
 - **No secrets in the repository.** The Cloudflare token comes from `CLOUDFLARE_API_TOKEN`, the TMDB token from a git-ignored `.env.local`, and Terraform state and `*.tfvars` are ignored too.
 - **Optimized assets.** The hero logo is a ~20 KB WebP.
 
@@ -91,7 +96,9 @@ terraform plan
 terraform apply
 ```
 
-Site:
+The site is deployed automatically by GitHub Actions on every push to `main` (`.github/workflows/deploy.yml`). It needs the repository secrets `VITE_TMDB_TOKEN` and `AWS_ROLE_ARN` (Terraform output `github_deploy_role_arn`), and the repository variables `S3_BUCKET` and `CF_DISTRIBUTION_ID` (Terraform outputs `bucket_name` and `distribution_id`).
+
+Manual deploy, equivalent to what the workflow does:
 
 ```bash
 npm run build
@@ -109,7 +116,7 @@ aws cloudfront create-invalidation \
 
 - [x] AWS WAF in front of CloudFront (rate limiting and IP reputation).
 - [ ] CAPTCHA (Cloudflare Turnstile) on the future comments form.
-- [ ] CI/CD with GitHub Actions authenticating to AWS through OIDC (no long-lived keys).
+- [x] CI/CD with GitHub Actions authenticating to AWS through OIDC (no long-lived keys).
 - [ ] Reviews and comments with an API behind it, moderated with Amazon Bedrock Guardrails.
 - [ ] Lambda proxy for the TMDB token.
 
