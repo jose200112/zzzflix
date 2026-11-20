@@ -23,3 +23,26 @@ variable "cloudflare_zone_id" {
   description = "Zone ID del dominio en Cloudflare (no es secreto)"
   type        = string
 }
+
+variable "flat_rate_free_plan" {
+  description = "Subscribe the distribution to the CloudFront Free flat-rate plan (requires WAF)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_waf" {
+  description = "Attach AWS WAF to CloudFront"
+  type        = bool
+  default     = true
+}
+
+variable "alert_email" {
+  description = "Email for budget alerts"
+  type        = string
+}
+
+variable "monthly_budget_usd" {
+  description = "Monthly account budget alert threshold in USD"
+  type        = number
+  default     = 15
+}

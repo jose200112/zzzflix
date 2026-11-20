@@ -78,6 +78,7 @@ data "aws_cloudfront_cache_policy" "optimized" {
 }
 
 resource "aws_cloudfront_distribution" "site" {
+  web_acl_id          = var.enable_waf ? aws_wafv2_web_acl.site[0].arn : null
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
@@ -91,12 +92,13 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   default_cache_behavior {
-    target_origin_id       = "s3-site"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
-    cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+    target_origin_id           = "s3-site"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
   }
 
   # SPA: las rutas de React (/peliculas, /titulo/3...) no existen como archivo
