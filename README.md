@@ -23,6 +23,8 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 | Data | TMDB API (`fetch`, `Promise.allSettled`) |
 | Hosting | Amazon S3 (private) + Amazon CloudFront |
 | TLS | AWS Certificate Manager |
+| Security | AWS WAF (rate limiting, IP reputation), CloudFront security headers |
+| Cost control | AWS Budgets alerts |
 | DNS | Cloudflare |
 | Infrastructure as code | Terraform (AWS + Cloudflare providers) |
 
@@ -33,6 +35,7 @@ flowchart LR
   U([Browser])
   DNS[Cloudflare DNS<br/>zzzflix.josemunozmunoz.dev]
   CF[CloudFront<br/>HTTPS, HTTP/2, gzip]
+  WAF[AWS WAF<br/>rate limit, IP reputation]
   S3[(S3 bucket<br/>private, eu-north-1)]
   ACM[ACM certificate<br/>us-east-1]
   TMDB[TMDB API]
@@ -42,6 +45,7 @@ flowchart LR
   U -->|2. HTTPS| CF
   CF -->|OAC, SigV4| S3
   ACM -.->|attached to| CF
+  WAF -.->|protects| CF
   U -->|3. catalog data| TMDB
 ```
 
@@ -52,13 +56,16 @@ The site is 100% static: there is no server to run or patch. The browser downloa
 - **Private bucket + Origin Access Control (OAC).** The S3 bucket blocks all public access. Only this specific CloudFront distribution can read it (bucket policy conditioned on the distribution ARN), so the content can only be reached through the CDN.
 - **Certificate in `us-east-1`.** CloudFront only accepts ACM certificates from that region, so the project uses a second, aliased AWS provider for it while the bucket lives in `eu-north-1`. The certificate is validated through DNS records created by Terraform in Cloudflare.
 - **SPA routing.** React Router routes such as `/soporiferas` or `/titulo/1398` do not exist as files in S3. CloudFront custom error responses turn 403/404 into `index.html` (status 200), so deep links and refreshes work. Trade-off: genuinely missing files also return the app shell, and the router decides what to show.
-- **`PriceClass_100`.** Only the cheapest edge locations (North America and Europe), which is enough for this audience.
+- **CloudFront Free flat-rate plan.** Subscribed from Terraform (`aws_pricingplanmanager_subscription`). It bundles the CDN, DDoS protection and a managed WAF for $0/month with no overage charges: if traffic exceeds the allowance, delivery is throttled instead of billed.
+- **WAF.** A per-IP rate limit and the AWS IP reputation list in front of CloudFront. The Free plan allows up to 5 rules and no CAPTCHA, so the CAPTCHA is reserved for the future comments form.
+- **Security headers.** HSTS, `X-Content-Type-Options` and `X-Frame-Options` through the managed CloudFront response headers policy.
+- **Cost guardrail.** An AWS Budgets alert emails me when the account forecast or spend approaches the monthly threshold.
 - **No secrets in the repository.** The Cloudflare token comes from `CLOUDFLARE_API_TOKEN`, the TMDB token from a git-ignored `.env.local`, and Terraform state and `*.tfvars` are ignored too.
-- **Optimized assets.** The hero logo is a 20 KB WebP (it started as a 1.3 MB PNG).
+- **Optimized assets.** The hero logo is a ~20 KB WebP.
 
 ### Cost
 
-Serving the site costs cents per month (S3 storage, CloudFront transfer; ACM is free).
+Serving the site costs cents per month: only S3 storage is billed. CloudFront and the WAF are covered by the Free flat-rate plan, and ACM is free.
 
 ## Run it locally
 
@@ -78,6 +85,7 @@ Infrastructure (requires AWS credentials and `CLOUDFLARE_API_TOKEN` in the envir
 cd infra
 # set your Cloudflare zone id in infra/terraform.tfvars (git-ignored):
 #   cloudflare_zone_id = "..."
+#   alert_email        = "..."
 terraform init
 terraform plan
 terraform apply
@@ -99,7 +107,8 @@ aws cloudfront create-invalidation \
 
 ## Roadmap
 
-- [ ] AWS WAF in front of CloudFront (managed rules, rate limiting and a CAPTCHA challenge).
+- [x] AWS WAF in front of CloudFront (rate limiting and IP reputation).
+- [ ] CAPTCHA (Cloudflare Turnstile) on the future comments form.
 - [ ] CI/CD with GitHub Actions authenticating to AWS through OIDC (no long-lived keys).
 - [ ] Reviews and comments with an API behind it, moderated with Amazon Bedrock Guardrails.
 - [ ] Lambda proxy for the TMDB token.

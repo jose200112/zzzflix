@@ -39,9 +39,7 @@ resource "aws_wafv2_web_acl" "site" {
 
   dynamic "rule" {
     for_each = {
-      "aws-common-rules"     = { priority = 2, name = "AWSManagedRulesCommonRuleSet" }
-      "aws-ip-reputation"    = { priority = 3, name = "AWSManagedRulesAmazonIpReputationList" }
-      "aws-known-bad-inputs" = { priority = 4, name = "AWSManagedRulesKnownBadInputsRuleSet" }
+      "aws-ip-reputation" = { priority = 3, name = "AWSManagedRulesAmazonIpReputationList" }
     }
 
     content {

@@ -83,7 +83,7 @@ resource "aws_cloudfront_distribution" "site" {
   is_ipv6_enabled     = true
   default_root_object = "index.html"
   aliases             = [local.fqdn]
-  price_class         = "PriceClass_100"
+  price_class         = "PriceClass_All"
 
   origin {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
