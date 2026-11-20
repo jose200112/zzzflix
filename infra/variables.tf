@@ -52,3 +52,9 @@ variable "github_repo" {
   type        = string
   default     = "jose200112/zzzflix"
 }
+
+variable "github_sub_claim" {
+  description = "Exact OIDC subject allowed to deploy (GitHub immutable format with owner and repo IDs)"
+  type        = string
+  default     = "repo:jose200112@94020194/zzzflix@1457820672:ref:refs/heads/main"
+}
