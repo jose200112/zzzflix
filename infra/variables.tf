@@ -46,3 +46,9 @@ variable "monthly_budget_usd" {
   type        = number
   default     = 15
 }
+
+variable "github_repo" {
+  description = "GitHub repo allowed to deploy (owner/name)"
+  type        = string
+  default     = "jose200112/zzzflix"
+}
