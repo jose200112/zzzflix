@@ -13,6 +13,7 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 - **"Más soporíferas"** ranking, sorted by sleep score and then by runtime.
 - Detail page per title (`/titulo/:id`) with deep links that survive a page refresh.
 - **Favorites** persisted in the browser (`localStorage`).
+- **Comments** on every title, with a CAPTCHA and a moderation queue: new comments stay hidden until approved.
 - Responsive grid, dark theme.
 
 ## Tech stack
@@ -25,6 +26,8 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 | TLS | AWS Certificate Manager |
 | Security | AWS WAF (rate limiting, IP reputation), CloudFront security headers |
 | Cost control | AWS Budgets alerts |
+| Comments API | Amazon API Gateway (HTTP API), AWS Lambda (Node.js 22), Amazon DynamoDB |
+| Anti-abuse | Cloudflare Turnstile, server-side validation, daily caps, emergency switch |
 | CI/CD | GitHub Actions with OIDC (no stored AWS keys) |
 | DNS | Cloudflare |
 | Infrastructure as code | Terraform (AWS, Cloudflare and GitHub providers) |
@@ -41,6 +44,10 @@ flowchart LR
   ACM[ACM certificate<br/>us-east-1]
   TMDB[TMDB API]
   GHA[GitHub Actions<br/>build and deploy]
+  API[API Gateway<br/>HTTP API with throttling]
+  FN[Lambda<br/>validate, cap, verify CAPTCHA]
+  DDB[(DynamoDB<br/>comments and daily counters)]
+  TS[Cloudflare Turnstile]
 
   U -->|1. resolves| DNS
   DNS -->|CNAME| CF
@@ -51,9 +58,14 @@ flowchart LR
   U -->|3. catalog data| TMDB
   GHA -->|OIDC role, s3 sync| S3
   GHA -->|invalidate cache| CF
+  U -->|4. read and post comments| API
+  API --> FN
+  FN --> DDB
+  FN -->|verify token| TS
+  U -.->|CAPTCHA widget| TS
 ```
 
-The site is 100% static: there is no server to run or patch. The browser downloads the compiled app from CloudFront and then calls TMDB directly for the catalog data.
+The site itself is 100% static: there is no server to run or patch. The browser downloads the compiled app from CloudFront and then calls TMDB directly for the catalog data. The only dynamic part is the comments API, a small serverless backend (API Gateway, Lambda and DynamoDB) that costs nothing while nobody uses it.
 
 ### Design decisions
 
@@ -61,8 +73,11 @@ The site is 100% static: there is no server to run or patch. The browser downloa
 - **Certificate in `us-east-1`.** CloudFront only accepts ACM certificates from that region, so the project uses a second, aliased AWS provider for it while the bucket lives in `eu-north-1`. The certificate is validated through DNS records created by Terraform in Cloudflare.
 - **SPA routing.** React Router routes such as `/soporiferas` or `/titulo/1398` do not exist as files in S3. CloudFront custom error responses turn 403/404 into `index.html` (status 200), so deep links and refreshes work. Trade-off: genuinely missing files also return the app shell, and the router decides what to show.
 - **CloudFront Free flat-rate plan.** Subscribed from Terraform (`aws_pricingplanmanager_subscription`). It bundles the CDN, DDoS protection and a managed WAF for $0/month with no overage charges: if traffic exceeds the allowance, delivery is throttled instead of billed.
-- **WAF.** A per-IP rate limit and the AWS IP reputation list in front of CloudFront. The Free plan allows up to 5 rules and no CAPTCHA, so the CAPTCHA is reserved for the future comments form.
+- **WAF.** A per-IP rate limit and the AWS IP reputation list in front of CloudFront. The Free plan allows up to 5 rules and no CAPTCHA, so the CAPTCHA lives in the comments form (Cloudflare Turnstile) instead.
 - **Security headers.** HSTS, `X-Content-Type-Options` and `X-Frame-Options` through the managed CloudFront response headers policy.
+- **Comments behind a moderation queue.** Anyone can post, but a comment is stored as `pending` and the public endpoint only returns approved ones. Text is rendered as plain text by React, never as HTML.
+- **Defense in depth for the comments API.** The frontend checks are only for UX; the Lambda is the real gate. In order: input validation (nickname, length, no links or angle brackets), Turnstile token verified server-side with Cloudflare, a per-IP daily cap and a global daily cap, and finally the write. The caps are atomic conditional updates on DynamoDB counters, so concurrent requests cannot overshoot them, and the counters expire on their own (DynamoDB TTL). IPs are stored only as a hash. API Gateway throttling and a Terraform variable that closes the POST endpoint (`comments_enabled`) act as an emergency brake.
+- **Least privilege for the Lambda.** Its role can only put, query and update items in the comments table, plus write its own logs.
 - **Cost guardrail.** An AWS Budgets alert emails me when the account forecast or spend approaches the monthly threshold.
 - **Keyless CI/CD.** GitHub Actions deploys on every push to `main` using OIDC: AWS trusts GitHub's identity token and hands out short-lived credentials, so no AWS keys are stored in GitHub. The IAM role is scoped to this repository and branch (using GitHub's immutable subject claim, which includes the owner and repository IDs) and can only write to the site bucket and invalidate this distribution.
 - **No secrets in the repository.** The Cloudflare token comes from `CLOUDFLARE_API_TOKEN`, the TMDB token from a git-ignored `.env.local`, and Terraform state and `*.tfvars` are ignored too.
@@ -70,7 +85,7 @@ The site is 100% static: there is no server to run or patch. The browser downloa
 
 ### Cost
 
-Serving the site costs cents per month: only S3 storage is billed. CloudFront and the WAF are covered by the Free flat-rate plan, and ACM is free.
+Serving the site costs cents per month: only S3 storage is billed. CloudFront and the WAF are covered by the Free flat-rate plan, and ACM is free. The comments backend is pay-per-use (on-demand DynamoDB, Lambda, HTTP API), and its worst case is bounded by throttling and the daily caps.
 
 ## Run it locally
 
@@ -84,7 +99,7 @@ You need a free TMDB API key (use the *API Read Access Token*). `.env.local` is 
 
 ## Deploy
 
-Infrastructure (requires AWS credentials, `CLOUDFLARE_API_TOKEN` and `GITHUB_TOKEN` in the environment; the GitHub token only needs *Variables: Read and write* on this repository):
+Infrastructure (requires AWS credentials, `CLOUDFLARE_API_TOKEN`, `GITHUB_TOKEN` and `TF_VAR_turnstile_secret`, the Turnstile secret key, in the environment; the GitHub token only needs *Variables: Read and write* on this repository):
 
 ```bash
 cd infra
@@ -96,7 +111,7 @@ terraform plan
 terraform apply
 ```
 
-The site is deployed automatically by GitHub Actions on every push to `main` (`.github/workflows/deploy.yml`). It needs the repository secrets `VITE_TMDB_TOKEN` and `AWS_ROLE_ARN` (Terraform output `github_deploy_role_arn`), and the repository variables `S3_BUCKET` and `CF_DISTRIBUTION_ID`, which Terraform keeps in sync through the GitHub provider, so recreating the infrastructure needs no manual step.
+The site is deployed automatically by GitHub Actions on every push to `main` (`.github/workflows/deploy.yml`). It needs the repository secrets `VITE_TMDB_TOKEN` and `AWS_ROLE_ARN` (Terraform output `github_deploy_role_arn`), and the repository variables `S3_BUCKET`, `CF_DISTRIBUTION_ID`, `COMMENTS_API_URL` and `TURNSTILE_SITE_KEY`, which Terraform keeps in sync through the GitHub provider, so recreating the infrastructure needs no manual step.
 
 Manual deploy, equivalent to what the workflow does:
 
@@ -111,13 +126,18 @@ aws cloudfront create-invalidation \
 
 - The TMDB token is bundled into the frontend, so anyone can read it from the browser. It is a free, read-only token for public data, which is acceptable for a demo; a small proxy (for example an AWS Lambda) would be the proper fix.
 - Favorites live in the browser only, so they are not shared across devices.
+- Comments are approved by hand (a DynamoDB update from the CLI); there is no admin page yet.
+- API Gateway throttling is best-effort, so it works as a brake and not as an exact limit. The exact limits are the daily caps enforced in the Lambda. The caps reset at midnight UTC, and a determined attacker with many IPs could still use up the global cap and block new comments for the day, which is the accepted trade-off to keep the cost bounded.
+- The Turnstile secret is passed to the Lambda as an environment variable, so it ends up in the Terraform state; SSM Parameter Store would be the next step.
 
 ## Roadmap
 
 - [x] AWS WAF in front of CloudFront (rate limiting and IP reputation).
-- [ ] CAPTCHA (Cloudflare Turnstile) on the future comments form.
+- [x] CAPTCHA (Cloudflare Turnstile) on the comments form, verified server-side.
 - [x] CI/CD with GitHub Actions authenticating to AWS through OIDC (no long-lived keys).
-- [ ] Reviews and comments with an API behind it, moderated with Amazon Bedrock Guardrails.
+- [x] Comments API with a moderation queue, daily caps and an emergency switch.
+- [ ] Automatic moderation with Amazon Bedrock Guardrails.
+- [ ] Small admin page to approve comments without the CLI.
 - [ ] Lambda proxy for the TMDB token.
 
 ## Credits
