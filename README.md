@@ -27,7 +27,7 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 | Cost control | AWS Budgets alerts |
 | CI/CD | GitHub Actions with OIDC (no stored AWS keys) |
 | DNS | Cloudflare |
-| Infrastructure as code | Terraform (AWS + Cloudflare providers) |
+| Infrastructure as code | Terraform (AWS, Cloudflare and GitHub providers) |
 
 ## Architecture
 
@@ -84,7 +84,7 @@ You need a free TMDB API key (use the *API Read Access Token*). `.env.local` is 
 
 ## Deploy
 
-Infrastructure (requires AWS credentials and `CLOUDFLARE_API_TOKEN` in the environment):
+Infrastructure (requires AWS credentials, `CLOUDFLARE_API_TOKEN` and `GITHUB_TOKEN` in the environment; the GitHub token only needs *Variables: Read and write* on this repository):
 
 ```bash
 cd infra
@@ -96,7 +96,7 @@ terraform plan
 terraform apply
 ```
 
-The site is deployed automatically by GitHub Actions on every push to `main` (`.github/workflows/deploy.yml`). It needs the repository secrets `VITE_TMDB_TOKEN` and `AWS_ROLE_ARN` (Terraform output `github_deploy_role_arn`), and the repository variables `S3_BUCKET` and `CF_DISTRIBUTION_ID` (Terraform outputs `bucket_name` and `distribution_id`).
+The site is deployed automatically by GitHub Actions on every push to `main` (`.github/workflows/deploy.yml`). It needs the repository secrets `VITE_TMDB_TOKEN` and `AWS_ROLE_ARN` (Terraform output `github_deploy_role_arn`), and the repository variables `S3_BUCKET` and `CF_DISTRIBUTION_ID`, which Terraform keeps in sync through the GitHub provider, so recreating the infrastructure needs no manual step.
 
 Manual deploy, equivalent to what the workflow does:
 
