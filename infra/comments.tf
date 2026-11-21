@@ -22,6 +22,14 @@ variable "ip_comment_cap" {
   default     = 3
 }
 
+# Clave secreta de Turnstile. Sin valor por defecto: se pasa por entorno
+# (export TF_VAR_turnstile_secret=...) y nunca se escribe en el repositorio.
+variable "turnstile_secret" {
+  description = "Clave secreta del widget de Cloudflare Turnstile"
+  type        = string
+  sensitive   = true
+}
+
 resource "aws_dynamodb_table" "comments" {
   name         = "${var.project_name}-comments"
   billing_mode = "PAY_PER_REQUEST"
@@ -110,6 +118,7 @@ resource "aws_lambda_function" "comments" {
       COMMENTS_ENABLED = tostring(var.comments_enabled)
       DAILY_CAP        = tostring(var.daily_comment_cap)
       IP_CAP           = tostring(var.ip_comment_cap)
+      TURNSTILE_SECRET = var.turnstile_secret
     }
   }
 

@@ -14,6 +14,7 @@ const TABLE = process.env.TABLE_NAME;
 const ENABLED = process.env.COMMENTS_ENABLED === "true"; // interruptor de emergencia
 const DAILY_CAP = Number(process.env.DAILY_CAP ?? 50); // comentarios al día en total
 const IP_CAP = Number(process.env.IP_CAP ?? 3); // comentarios al día por IP
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET ?? ""; // clave secreta de Turnstile
 
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u;
 const TITLE_RE = /^\d{1,10}$/;
@@ -48,6 +49,33 @@ async function bump(sk, cap) {
   } catch (err) {
     if (err.name === "ConditionalCheckFailedException") return false;
     throw err;
+  }
+}
+
+// Verifica el token del CAPTCHA con Cloudflare. Devuelve "ok", "invalid"
+// o "unavailable" (si Cloudflare no responde: se cierra por seguridad).
+async function verifyTurnstile(token, ip) {
+  if (typeof token !== "string" || token.length < 1 || token.length > 2048) {
+    return "invalid";
+  }
+  try {
+    const res = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          secret: TURNSTILE_SECRET,
+          response: token,
+          remoteip: ip,
+        }),
+        signal: AbortSignal.timeout(2500),
+      }
+    );
+    const out = await res.json();
+    return out.success === true ? "ok" : "invalid";
+  } catch {
+    return "unavailable";
   }
 }
 
@@ -105,11 +133,21 @@ async function createComment(event) {
     return json(400, { error: "invalid_text" });
   }
 
+  const ip = event.requestContext.http.sourceIp ?? "unknown";
+
+  // CAPTCHA (Cloudflare Turnstile), verificado en el servidor. Va después
+  // de la validación barata y antes de los contadores: un token falso no
+  // gasta cupo.
+  const captcha = await verifyTurnstile(data.turnstileToken, ip);
+  if (captcha === "unavailable") {
+    return json(503, { error: "captcha_unavailable" });
+  }
+  if (captcha !== "ok") return json(403, { error: "captcha_failed" });
+
   // Topes diarios (día en UTC). Solo cuentan los comentarios válidos.
   // Primero el de la IP: así una sola IP nunca puede gastar más de IP_CAP
   // del tope global.
   const day = new Date().toISOString().slice(0, 10);
-  const ip = event.requestContext.http.sourceIp ?? "unknown";
   // La IP no se guarda en claro, solo un hash que caduca a los 2 días
   const ipHash = createHash("sha256")
     .update(`${day}|${TABLE}|${ip}`)
