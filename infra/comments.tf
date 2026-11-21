@@ -1,7 +1,26 @@
 # ---------------------------------------------------------------
 # Comentarios: DynamoDB + Lambda + API Gateway (HTTP API)
 # Parte 1: base funcional. Los comentarios nuevos quedan "pending".
+# Parte 2a: topes diarios exactos e interruptor de emergencia.
 # ---------------------------------------------------------------
+
+variable "comments_enabled" {
+  description = "Interruptor de emergencia: false cierra el POST de comentarios"
+  type        = bool
+  default     = true
+}
+
+variable "daily_comment_cap" {
+  description = "Máximo de comentarios nuevos al día en total"
+  type        = number
+  default     = 50
+}
+
+variable "ip_comment_cap" {
+  description = "Máximo de comentarios nuevos al día por IP"
+  type        = number
+  default     = 3
+}
 
 resource "aws_dynamodb_table" "comments" {
   name         = "${var.project_name}-comments"
@@ -17,6 +36,12 @@ resource "aws_dynamodb_table" "comments" {
   attribute {
     name = "sk"
     type = "S"
+  }
+
+  # Los contadores diarios caducan solos
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
   }
 }
 
@@ -49,10 +74,10 @@ resource "aws_iam_role_policy_attachment" "comments_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Permisos mínimos: solo guardar y consultar en esta tabla
+# Permisos mínimos: guardar, consultar y actualizar contadores en esta tabla
 data "aws_iam_policy_document" "comments_db" {
   statement {
-    actions   = ["dynamodb:PutItem", "dynamodb:Query"]
+    actions   = ["dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.comments.arn]
   }
 }
@@ -81,7 +106,10 @@ resource "aws_lambda_function" "comments" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.comments.name
+      TABLE_NAME       = aws_dynamodb_table.comments.name
+      COMMENTS_ENABLED = tostring(var.comments_enabled)
+      DAILY_CAP        = tostring(var.daily_comment_cap)
+      IP_CAP           = tostring(var.ip_comment_cap)
     }
   }
 
