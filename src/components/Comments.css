@@ -1,0 +1,129 @@
+/* Tema oscuro propio de la app: no usa las variables de index.css,
+   que cambian con el tema del sistema y no con el de la web. */
+
+.comments {
+  margin-top: 2rem;
+}
+
+.comment-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  max-width: 520px;
+  text-align: left;
+}
+
+.comment-form h3,
+.comments-subtitle {
+  margin: 0;
+}
+
+.comments-subtitle {
+  margin-top: 2rem;
+}
+
+.comment-form label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.comment-form input,
+.comment-form textarea {
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+}
+
+.comment-form textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.comment-form input:focus,
+.comment-form textarea:focus {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.char-count {
+  justify-self: end;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.comment-form button {
+  justify-self: start;
+  font: inherit;
+  padding: 0.55rem 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: #7c4dca;
+  color: #fff;
+  cursor: pointer;
+}
+
+.comment-form button:hover:not(:disabled) {
+  background: #8f63dd;
+}
+
+.comment-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-message {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.form-message.ok {
+  color: #4ade80;
+}
+
+.form-message.error {
+  color: #f87171;
+}
+
+.form-note {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.comment-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.comment {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: left;
+}
+
+.comment-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.comment-meta strong {
+  color: inherit;
+  opacity: 1;
+}
+
+.comment p {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}

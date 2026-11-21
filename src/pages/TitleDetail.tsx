@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import type { Title } from '../data/titles'
 import SleepRating from '../components/SleepRating'
+import Comments from '../components/Comments'
 
 type TitleDetailProps = {
   titles: Title[]
@@ -54,8 +55,7 @@ function TitleDetail({ titles, favoriteIds, onToggleFavorite }: TitleDetailProps
       <h2>Sinopsis</h2>
       <p>{title.overview || 'Sin sinopsis disponible.'}</p>
 
-      <h2>Comentarios</h2>
-      <p>Próximamente: aquí irán los comentarios.</p>
+      <Comments key={title.id} titleId={title.id} />
     </section>
   )
 }

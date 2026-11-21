@@ -35,6 +35,8 @@ jobs:
         run: npm run build
         env:
           VITE_TMDB_TOKEN: ${{ secrets.VITE_TMDB_TOKEN }}
+          VITE_COMMENTS_API_URL: ${{ vars.COMMENTS_API_URL }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
