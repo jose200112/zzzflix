@@ -51,6 +51,15 @@ resource "aws_dynamodb_table" "comments" {
     attribute_name = "expiresAt"
     enabled        = true
   }
+
+  # Proteccion contra borrados y copias a un punto en el tiempo.
+  # Ojo: con la proteccion activa, "terraform destroy" falla hasta que se
+  # pone en false y se aplica (ver README).
+  deletion_protection_enabled = true
+
+  point_in_time_recovery {
+    enabled = true
+  }
 }
 
 # --- Lambda -------------------------------------------------------
