@@ -1,0 +1,65 @@
+# Checkov configuration for this project.
+# Run from the infra/ folder:  checkov --config-file checkov.yaml
+#
+# Every skipped check below is a deliberate decision, not an oversight.
+# This is a personal portfolio on a zero-cost budget, so controls that add
+# cost or complexity without a matching benefit are accepted and documented.
+
+directory:
+  - .
+framework:
+  - terraform
+compact: true
+quiet: true
+
+skip-check:
+  # --- Fixing it would break something -----------------------------
+  # SNS encrypted with the AWS-managed key: CloudWatch alarms could no
+  # longer publish to the topic (a customer-managed key would be needed).
+  - CKV_AWS_26
+  # Lambda inside a VPC: it would need a NAT Gateway (~$30/month) to reach
+  # Cloudflare Turnstile for CAPTCHA verification.
+  - CKV_AWS_117
+  # Reserved concurrency: the account quota is 10 concurrent executions, and
+  # Lambda requires some to remain unreserved. API throttling and the daily
+  # caps bound the load instead.
+  - CKV_AWS_115
+  # Geo restriction: the site must be reachable from anywhere (recruiters).
+  - CKV_AWS_374
+
+  # --- Not applicable ----------------------------------------------
+  # Dead letter queue only applies to asynchronous invocations; the Lambda is
+  # invoked synchronously by API Gateway.
+  - CKV_AWS_116
+  # Origin failover needs two origins; the site has one bucket.
+  - CKV_AWS_310
+  # S3 event notifications: nothing consumes them.
+  - CKV2_AWS_62
+  # Log4j rules: there is no Java anywhere in this stack.
+  - CKV_AWS_192
+  - CKV2_AWS_47
+  # The comments API is public by design (anonymous comments). Abuse is
+  # handled by Turnstile, validation, daily caps and throttling.
+  - CKV_AWS_309
+
+  # --- Paid or excessive for a personal portfolio ------------------
+  # Customer-managed KMS keys (data is already encrypted with AWS-owned or
+  # AWS-managed keys at no cost).
+  - CKV_AWS_119
+  - CKV_AWS_158
+  - CKV_AWS_173
+  - CKV_AWS_145
+  # Lambda code signing and X-Ray tracing.
+  - CKV_AWS_272
+  - CKV_AWS_50
+  # S3 versioning, replication, lifecycle and access logs: the site is
+  # rebuilt from git on every deploy, so there is nothing to recover.
+  - CKV_AWS_21
+  - CKV_AWS_144
+  - CKV2_AWS_61
+  - CKV_AWS_18
+  # CloudFront and WAF logging; log retention kept short on purpose (14 days)
+  # to limit cost and stored personal data (IP addresses).
+  - CKV_AWS_86
+  - CKV2_AWS_31
+  - CKV_AWS_338

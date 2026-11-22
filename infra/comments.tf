@@ -170,10 +170,31 @@ resource "aws_apigatewayv2_route" "post_comments" {
   target    = "integrations/${aws_apigatewayv2_integration.comments.id}"
 }
 
+# Registro de accesos de la API (para investigar abusos).
+# Incluye IPs, por eso la retencion es corta.
+resource "aws_cloudwatch_log_group" "comments_api" {
+  name              = "/aws/apigateway/${var.project_name}-comments"
+  retention_in_days = 14
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.comments.id
   name        = "$default"
   auto_deploy = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.comments_api.arn
+    format = jsonencode({
+      requestId        = "$context.requestId"
+      time             = "$context.requestTime"
+      ip               = "$context.identity.sourceIp"
+      method           = "$context.httpMethod"
+      route            = "$context.routeKey"
+      status           = "$context.status"
+      responseLength   = "$context.responseLength"
+      integrationError = "$context.integrationErrorMessage"
+    })
+  }
 
   # Techo de peticiones por segundo (protección básica de la parte 1)
   default_route_settings {
