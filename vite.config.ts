@@ -11,7 +11,7 @@ function cspMeta(apiUrl: string | undefined): Plugin {
     "script-src 'self' https://challenges.cloudflare.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://image.tmdb.org",
-    `connect-src 'self' https://api.themoviedb.org${apiUrl ? ` ${apiUrl}` : ''}`,
+    `connect-src 'self'${apiUrl ? ` ${apiUrl}` : ''}`,
     'frame-src https://challenges.cloudflare.com',
     "font-src 'self' data:",
     "object-src 'none'",

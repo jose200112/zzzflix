@@ -1,15 +1,10 @@
-import { curated } from '../data/curated'
 import type { Title } from '../data/titles'
-import { fetchTitle } from './tmdb'
+import catalog from '../data/catalog.json'
+
+// El catálogo se genera en local con "npm run catalog" (ver scripts/catalog.mjs)
+// y se guarda en el repositorio: la web ya no llama a TMDB.
+type CatalogEntry = Omit<Title, 'rating'>
 
 export async function loadCatalog(): Promise<Title[]> {
-  const results = await Promise.allSettled(
-    curated.map(async (c) => {
-      const t = await fetchTitle(c.tmdbId, c.type)
-      // La nota llega aparte (API de comentarios) y se une en App
-      return { ...t, type: c.type, rating: null }
-    }),
-  )
-
-  return results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+  return (catalog as CatalogEntry[]).map((t) => ({ ...t, rating: null }))
 }

@@ -1,0 +1,212 @@
+[
+  {
+    "tmdbId": 1398,
+    "type": "movie",
+    "name": "Stalker"
+  },
+  {
+    "tmdbId": 31414,
+    "type": "movie",
+    "name": "Sátántangó"
+  },
+  {
+    "tmdbId": 44012,
+    "type": "movie",
+    "name": "Jeanne Dielman"
+  },
+  {
+    "tmdbId": 593,
+    "type": "movie",
+    "name": "Solaris"
+  },
+  {
+    "tmdbId": 8967,
+    "type": "movie",
+    "name": "El árbol de la vida"
+  },
+  {
+    "tmdbId": 62,
+    "type": "movie",
+    "name": "2001: Una odisea del espacio"
+  },
+  {
+    "tmdbId": 4024,
+    "type": "movie",
+    "name": "El año pasado en Marienbad"
+  },
+  {
+    "tmdbId": 1956,
+    "type": "movie",
+    "name": "Gerry"
+  },
+  {
+    "tmdbId": 81401,
+    "type": "movie",
+    "name": "El caballo de Turín"
+  },
+  {
+    "tmdbId": 3175,
+    "type": "movie",
+    "name": "Barry Lyndon"
+  },
+  {
+    "tmdbId": 1920,
+    "type": "series",
+    "name": "Twin Peaks"
+  },
+  {
+    "tmdbId": 54344,
+    "type": "series",
+    "name": "The Leftovers"
+  },
+  {
+    "tmdbId": 895,
+    "type": "movie",
+    "name": "Andrei Rublev",
+    "year": 1966
+  },
+  {
+    "tmdbId": 1396,
+    "type": "movie",
+    "name": "El espejo",
+    "year": 1975
+  },
+  {
+    "tmdbId": 24657,
+    "type": "movie",
+    "name": "Sacrificio",
+    "year": 1986
+  },
+  {
+    "tmdbId": 23160,
+    "type": "movie",
+    "name": "Armonías de Werckmeister",
+    "year": 2001
+  },
+  {
+    "tmdbId": 20122,
+    "type": "movie",
+    "name": "La condena",
+    "year": 1988
+  },
+  {
+    "tmdbId": 186975,
+    "type": "movie",
+    "name": "Norte, Hangganan ng Kasaysayan",
+    "year": 2014
+  },
+  {
+    "tmdbId": 377153,
+    "type": "movie",
+    "name": "A Lullaby to the Sorrowful Mystery",
+    "year": 2016
+  },
+  {
+    "tmdbId": 12627,
+    "type": "movie",
+    "name": "La bella mentirosa",
+    "year": 1991
+  },
+  {
+    "tmdbId": 10935,
+    "type": "movie",
+    "name": "La puerta del cielo",
+    "year": 1980
+  },
+  {
+    "tmdbId": 26638,
+    "type": "movie",
+    "name": "El desierto rojo",
+    "year": 1964
+  },
+  {
+    "tmdbId": 5165,
+    "type": "movie",
+    "name": "La aventura",
+    "year": 1960
+  },
+  {
+    "tmdbId": 256222,
+    "type": "movie",
+    "name": "Sleep",
+    "year": 1964
+  },
+  {
+    "tmdbId": 108419,
+    "type": "movie",
+    "name": "Empire",
+    "year": 1965
+  },
+  {
+    "tmdbId": 298721,
+    "type": "movie",
+    "name": "Cemetery of Splendour",
+    "year": 2015
+  },
+  {
+    "tmdbId": 38368,
+    "type": "movie",
+    "name": "Tío Boonmee recuerda sus vidas pasadas",
+    "year": 2010
+  },
+  {
+    "tmdbId": 38047,
+    "type": "movie",
+    "name": "Eureka",
+    "year": 2001
+  },
+  {
+    "tmdbId": 11314,
+    "type": "movie",
+    "name": "Koyaanisqatsi",
+    "year": 1983
+  },
+  {
+    "tmdbId": 265169,
+    "type": "movie",
+    "name": "Sueño de invierno",
+    "year": 2014
+  },
+  {
+    "tmdbId": 1665,
+    "type": "movie",
+    "name": "Últimos días",
+    "year": 2005
+  },
+  {
+    "tmdbId": 1807,
+    "type": "movie",
+    "name": "Elephant",
+    "year": 2003
+  },
+  {
+    "tmdbId": 947,
+    "type": "movie",
+    "name": "Lawrence de Arabia",
+    "year": 1962
+  },
+  {
+    "tmdbId": 42699,
+    "type": "series",
+    "name": "El Decálogo",
+    "year": 1989
+  },
+  {
+    "tmdbId": 43189,
+    "type": "series",
+    "name": "Berlin Alexanderplatz",
+    "year": 1980
+  },
+  {
+    "tmdbId": 74879,
+    "type": "movie",
+    "name": "Érase una vez en Anatolia",
+    "year": 2011
+  },
+  {
+    "tmdbId": 1394,
+    "type": "movie",
+    "name": "Nostalgia",
+    "year": 1983
+  }
+]

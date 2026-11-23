@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "catalog": "node --env-file=.env.local scripts/catalog.mjs build",
+    "catalog:add": "node --env-file=.env.local scripts/catalog.mjs add"
   },
   "dependencies": {
     "react": "^19.3.1",
