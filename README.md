@@ -8,7 +8,8 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 
 ## Features
 
-- Catalog of ~40 films and series (posters, synopsis in Spanish, runtime) built from the [TMDB API](https://www.themoviedb.org/). The data is fetched once, at curation time, and committed as a JSON snapshot.
+- Catalog of ~275 films and series (posters, synopsis in Spanish, runtime) built from the [TMDB API](https://www.themoviedb.org/): a hand-picked core list plus long, well-rated, non-blockbuster films found through TMDB's discovery endpoint. The data is fetched once, at curation time, and committed as a JSON snapshot.
+- **Search and pagination** on every list (20 titles per page). Search ignores case and accents, and both the query and the page live in the URL, so the back button and shared links work.
 - A community **sleep score** (1–5 💤) for every title: each comment carries a rating, and a title's score is the average of the *approved* ratings. Titles nobody has rated show as "Sin valorar".
 - **"Más soporíferas"** ranking, sorted by that score and then by runtime.
 - Detail page per title (`/titulo/:id`) with deep links that survive a page refresh.
@@ -84,7 +85,7 @@ The site itself is 100% static: there is no server to run or patch. The browser 
 - **Cost guardrail.** An AWS Budgets alert emails me when the account forecast or spend approaches the monthly threshold.
 - **Keyless CI/CD.** GitHub Actions deploys on every push to `main` using OIDC: AWS trusts GitHub's identity token and hands out short-lived credentials, so no AWS keys are stored in GitHub. The IAM role is scoped to this repository and branch (using GitHub's immutable subject claim, which includes the owner and repository IDs) and can only write to the site bucket and invalidate this distribution.
 - **No secrets in the repository.** The Cloudflare token comes from `CLOUDFLARE_API_TOKEN`, the TMDB token from a git-ignored `.env.local`, and Terraform state and `*.tfvars` are ignored too.
-- **Catalog as a build-time snapshot.** `npm run catalog` reads the hand-curated list (`src/data/curated.json`), fetches each title from TMDB and writes `src/data/catalog.json`, which the app imports. The browser never calls the TMDB API, so there is no TMDB token in the frontend bundle, no per-visitor request fan-out, and the page does not depend on TMDB being up. `npm run catalog:add -- "Title" 1975` searches TMDB, checks the year and appends the match. Trade-off: new titles or updated data need a manual run and a commit.
+- **Catalog as a build-time snapshot.** `npm run catalog` reads the hand-curated list (`src/data/curated.json`), fetches each title from TMDB and writes `src/data/catalog.json`, which the app imports. The browser never calls the TMDB API, so there is no TMDB token in the frontend bundle, no per-visitor request fan-out, and the page does not depend on TMDB being up. `npm run catalog:add -- "Title" 1975` searches TMDB, checks the year and appends the match to the hand-picked list, and `npm run catalog:discover` proposes more films (long, well rated, mid-sized audience, no action, animation, documentaries or music) into a separate file. Discovered titles are re-checked against the real runtime and the Spanish synopsis, and the hand-picked list always wins. The catalog is loaded on demand as its own chunk, so it does not weigh on the first paint. Trade-off: new titles or updated data need a manual run and a commit.
 - **Optimized assets.** The hero logo is a ~20 KB WebP.
 
 ### Cost
@@ -103,6 +104,7 @@ The catalog is already in the repository, so no API key is needed to run the app
 ```bash
 echo "VITE_TMDB_TOKEN=your_tmdb_read_access_token" > .env.local
 npm run catalog:add -- "Stalker" 1979   # search TMDB and add to src/data/curated.json
+npm run catalog:discover                # propose more titles (src/data/discovered.json)
 npm run catalog                         # regenerate src/data/catalog.json
 ```
 
