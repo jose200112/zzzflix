@@ -9,11 +9,11 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 ## Features
 
 - Catalog of films and series loaded from the [TMDB API](https://www.themoviedb.org/) (posters, synopsis in Spanish, runtime).
-- A curated **sleep score** (1–5 💤) for every title.
-- **"Más soporíferas"** ranking, sorted by sleep score and then by runtime.
+- A community **sleep score** (1–5 💤) for every title: each comment carries a rating, and a title's score is the average of the *approved* ratings. Titles nobody has rated show as "Sin valorar".
+- **"Más soporíferas"** ranking, sorted by that score and then by runtime.
 - Detail page per title (`/titulo/:id`) with deep links that survive a page refresh.
 - **Favorites** persisted in the browser (`localStorage`).
-- **Comments** on every title, with a CAPTCHA and a moderation queue: new comments stay hidden until approved.
+- **Comments** on every title, with a CAPTCHA and a moderation queue: new comments (and their ratings) stay hidden until approved.
 - Responsive grid, dark theme.
 
 ## Tech stack
@@ -27,7 +27,8 @@ A personal portfolio project: a React single-page app deployed on AWS as a stati
 | Security | AWS WAF (rate limiting, IP reputation), CloudFront security headers |
 | Cost control | AWS Budgets alerts |
 | Comments API | Amazon API Gateway (HTTP API), AWS Lambda (Node.js 22), Amazon DynamoDB |
-| Anti-abuse | Cloudflare Turnstile, server-side validation, daily caps, emergency switch |
+| Anti-abuse | Cloudflare Turnstile, server-side validation, daily caps, IP bans, emergency switch |
+| Operations | CloudWatch alarms + SNS email, API access logs, Checkov, Dependabot |
 | CI/CD | GitHub Actions with OIDC (no stored AWS keys) |
 | DNS | Cloudflare |
 | Infrastructure as code | Terraform (AWS, Cloudflare and GitHub providers) |
@@ -46,7 +47,7 @@ flowchart LR
   GHA[GitHub Actions<br/>build and deploy]
   API[API Gateway<br/>HTTP API with throttling]
   FN[Lambda<br/>validate, cap, verify CAPTCHA]
-  DDB[(DynamoDB<br/>comments and daily counters)]
+  DDB[(DynamoDB<br/>comments, ratings, bans, counters)]
   TS[Cloudflare Turnstile]
 
   U -->|1. resolves| DNS
@@ -77,7 +78,11 @@ The site itself is 100% static: there is no server to run or patch. The browser 
 - **Security headers.** HSTS, `X-Content-Type-Options` and `X-Frame-Options` through the managed CloudFront response headers policy.
 - **Comments behind a moderation queue.** Anyone can post, but a comment is stored as `pending` and the public endpoint only returns approved ones. Text is rendered as plain text by React, never as HTML.
 - **Defense in depth for the comments API.** The frontend checks are only for UX; the Lambda is the real gate. In order: input validation (nickname, length, no links or angle brackets), Turnstile token verified server-side with Cloudflare, a per-IP daily cap and a global daily cap, and finally the write. The caps are atomic conditional updates on DynamoDB counters, so concurrent requests cannot overshoot them, and the counters expire on their own (DynamoDB TTL). IPs are stored only as a hash. API Gateway throttling and a Terraform variable that closes the POST endpoint (`comments_enabled`) act as an emergency brake.
-- **Least privilege for the Lambda.** Its role can only put, query and update items in the comments table, plus write its own logs.
+- **Ratings that cannot be gamed in bulk.** A rating only exists inside a comment, so it is moderated like one and only counts once approved. Approving a comment updates a per-title aggregate (`sum`, `count`) in the same DynamoDB transaction, so the average can never drift from the approved comments. The frontend ranks titles with a weighted average that mixes in two virtual votes of value 1 (the value of an unrated title), so a single 5 cannot jump a title to the top.
+- **Moderation from the terminal.** `infra/scripts/moderate.py` lists pending comments and approves, rejects or deletes them. It can also ban an author: the Lambda stores a hash of the IP (never the IP itself) with each comment, the script bans that hash, and banned IPs get a 403 before any other work. The script strips control characters from comment text so a comment cannot inject escape sequences into the moderator's terminal.
+- **Least privilege for the Lambda.** Its role can only get, put, query and update items in the comments table, plus write its own logs. The table has deletion protection and point-in-time recovery.
+- **Content-Security-Policy.** The CloudFront Free plan does not allow custom response headers, so the CSP is injected as a `<meta>` tag at build time by a small Vite plugin. It restricts scripts to the app and Cloudflare Turnstile, and connections to TMDB and the comments API. (A meta CSP cannot use `frame-ancestors` or report-only mode; that is a known limit of this plan.)
+- **Monitoring and hygiene.** CloudWatch alarms email me through SNS when the comments Lambda errors or throttles, or the API gets unusual traffic. API Gateway access logs (14-day retention) allow investigating abuse. The Terraform code is scanned with Checkov, with every skipped check documented in `infra/checkov.yaml`, and Dependabot keeps npm packages, GitHub Actions and Terraform providers up to date.
 - **Cost guardrail.** An AWS Budgets alert emails me when the account forecast or spend approaches the monthly threshold.
 - **Keyless CI/CD.** GitHub Actions deploys on every push to `main` using OIDC: AWS trusts GitHub's identity token and hands out short-lived credentials, so no AWS keys are stored in GitHub. The IAM role is scoped to this repository and branch (using GitHub's immutable subject claim, which includes the owner and repository IDs) and can only write to the site bucket and invalidate this distribution.
 - **No secrets in the repository.** The Cloudflare token comes from `CLOUDFLARE_API_TOKEN`, the TMDB token from a git-ignored `.env.local`, and Terraform state and `*.tfvars` are ignored too.
@@ -126,7 +131,8 @@ aws cloudfront create-invalidation \
 
 - The TMDB token is bundled into the frontend, so anyone can read it from the browser. It is a free, read-only token for public data, which is acceptable for a demo; a small proxy (for example an AWS Lambda) would be the proper fix.
 - Favorites live in the browser only, so they are not shared across devices.
-- Comments are approved by hand (a DynamoDB update from the CLI); there is no admin page yet.
+- Comments are approved from a terminal script that needs my AWS credentials; there is no admin page yet.
+- Ratings are as trustworthy as the moderation behind them: anyone can submit a comment with a rating, and I approve what looks genuine. Per-IP and global daily caps, the CAPTCHA and bans limit manipulation, but they do not make it impossible, which is why a title's score is shown together with its number of votes.
 - API Gateway throttling is best-effort, so it works as a brake and not as an exact limit. The exact limits are the daily caps enforced in the Lambda. The caps reset at midnight UTC, and a determined attacker with many IPs could still use up the global cap and block new comments for the day, which is the accepted trade-off to keep the cost bounded.
 - The Turnstile secret is passed to the Lambda as an environment variable, so it ends up in the Terraform state; SSM Parameter Store would be the next step.
 
@@ -136,6 +142,8 @@ aws cloudfront create-invalidation \
 - [x] CAPTCHA (Cloudflare Turnstile) on the comments form, verified server-side.
 - [x] CI/CD with GitHub Actions authenticating to AWS through OIDC (no long-lived keys).
 - [x] Comments API with a moderation queue, daily caps and an emergency switch.
+- [x] Community ratings, moderation script and IP bans.
+- [x] Alarms, Content-Security-Policy, Checkov and Dependabot.
 - [ ] Automatic moderation with Amazon Bedrock Guardrails.
 - [ ] Small admin page to approve comments without the CLI.
 - [ ] Lambda proxy for the TMDB token.
