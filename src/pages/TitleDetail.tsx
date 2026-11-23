@@ -20,7 +20,7 @@ function TitleDetail({ titles, favoriteIds, onToggleFavorite }: TitleDetailProps
         <Link to="/" className="back-link">← Volver al inicio</Link>
       </section>
     )
-  }
+  } 
 
   const isFavorite = favoriteIds.includes(title.id)
 
