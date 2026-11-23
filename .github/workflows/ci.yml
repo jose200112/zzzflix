@@ -1,0 +1,54 @@
+name: CI
+
+# Se ejecuta en cada pull request (incluidas las de Dependabot).
+# No despliega nada y no usa secretos.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  checkov:
+    name: Checkov (Terraform)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Checkov
+        run: pip install checkov==3.4.6
+
+      # checkov.yaml documenta cada check que se omite a propósito
+      - name: Run Checkov
+        working-directory: infra
+        run: checkov --config-file checkov.yaml
