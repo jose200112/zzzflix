@@ -94,7 +94,7 @@ resource "aws_iam_role_policy_attachment" "comments_logs" {
 # Permisos mínimos: guardar, consultar y actualizar contadores en esta tabla
 data "aws_iam_policy_document" "comments_db" {
   statement {
-    actions   = ["dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem"]
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.comments.arn]
   }
 }
@@ -170,6 +170,12 @@ resource "aws_apigatewayv2_route" "post_comments" {
   target    = "integrations/${aws_apigatewayv2_integration.comments.id}"
 }
 
+resource "aws_apigatewayv2_route" "get_ratings" {
+  api_id    = aws_apigatewayv2_api.comments.id
+  route_key = "GET /ratings"
+  target    = "integrations/${aws_apigatewayv2_integration.comments.id}"
+}
+
 # Registro de accesos de la API (para investigar abusos).
 # Incluye IPs, por eso la retencion es corta.
 resource "aws_cloudwatch_log_group" "comments_api" {
@@ -211,6 +217,7 @@ resource "aws_apigatewayv2_stage" "default" {
   depends_on = [
     aws_apigatewayv2_route.get_comments,
     aws_apigatewayv2_route.post_comments,
+    aws_apigatewayv2_route.get_ratings,
   ]
 }
 

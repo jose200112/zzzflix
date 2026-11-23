@@ -127,3 +127,68 @@
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
 }
+
+/* --- Selector de nota ------------------------------------------- */
+
+.comment-form .rating-field {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.rating-field legend {
+  padding: 0;
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.rating-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.comment-form .rating-option {
+  position: relative;
+  display: block;
+}
+
+/* El radio real queda oculto pero accesible por teclado */
+.comment-form .rating-option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.rating-option span {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.rating-option.selected span {
+  background: #7c4dca;
+  border-color: #7c4dca;
+  color: #fff;
+}
+
+.rating-option input:focus-visible + span {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+.rating-hint {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}

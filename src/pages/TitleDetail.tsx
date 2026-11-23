@@ -42,7 +42,7 @@ function TitleDetail({ titles, favoriteIds, onToggleFavorite }: TitleDetailProps
             {title.year} · {title.type === 'movie' ? 'Película' : 'Serie'}
             {title.runtime ? ` · ${title.runtime} min` : ''}
           </p>
-          <SleepRating score={title.sleepScore} />
+          <SleepRating rating={title.rating} />
           <button
             className={`fav-btn ${isFavorite ? 'active' : ''}`}
             onClick={() => onToggleFavorite(title.id)}

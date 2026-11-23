@@ -28,7 +28,7 @@ function TitleCard({ item, isFavorite, onToggleFavorite }: TitleCardProps) {
         {item.year}
         {item.runtime ? ` · ${item.runtime} min` : ''}
       </p>
-      <SleepRating score={item.sleepScore} />
+      <SleepRating rating={item.rating} />
       <p className="overview">{item.overview || 'Sin sinopsis disponible.'}</p>
       <button
         className={`fav-btn ${isFavorite ? 'active' : ''}`}

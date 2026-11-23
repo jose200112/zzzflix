@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
+  GetCommand,
   PutCommand,
   QueryCommand,
   UpdateCommand,
@@ -22,17 +23,29 @@ const URL_RE = /(https?:\/\/|www\.)/i;
 const MAX_BODY = 2000;
 const MAX_TEXT = 500;
 
-const json = (statusCode, body) => ({
+// Claves especiales de la tabla (la consulta pública solo acepta ids numéricos,
+// así que nunca puede leerlas):
+//   "#limits"  contadores diarios
+//   "#ratings" una fila por película con { sum, count } de notas aprobadas
+//              (la actualiza el script de moderación al aprobar)
+//   "#bans"    una fila por IP baneada (la gestiona el script de moderación)
+
+const json = (statusCode, body, headers = {}) => ({
   statusCode,
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", ...headers },
   body: JSON.stringify(body),
 });
+
+// De { sum, count } a { count, average } (average es null si no hay notas)
+const stats = (item) =>
+  item && item.count > 0
+    ? { count: item.count, average: Math.round((item.sum / item.count) * 10) / 10 }
+    : { count: 0, average: null };
 
 // Suma 1 a un contador diario, pero solo si no ha llegado al tope.
 // La condición se evalúa dentro de DynamoDB de forma atómica, así que
 // dos peticiones simultáneas no pueden colarse por encima del límite.
-// Los contadores viven bajo titleId "#limits", que la consulta pública
-// nunca puede pedir (solo acepta números), y caducan solos por TTL.
+// Los contadores caducan solos por TTL.
 async function bump(sk, cap) {
   const expiresAt = Math.floor(Date.now() / 1000) + 2 * 86400;
   try {
@@ -79,31 +92,58 @@ async function verifyTurnstile(token, ip) {
   }
 }
 
-// GET /comments?titleId=1398 -> solo comentarios aprobados
+// GET /comments?titleId=1398 -> comentarios aprobados + media de notas
 async function listComments(event) {
   const titleId = event.queryStringParameters?.titleId ?? "";
   if (!TITLE_RE.test(titleId)) return json(400, { error: "invalid_title" });
 
+  const [out, st] = await Promise.all([
+    db.send(
+      new QueryCommand({
+        TableName: TABLE,
+        KeyConditionExpression: "titleId = :t",
+        FilterExpression: "#s = :a",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: { ":t": titleId, ":a": "approved" },
+        ScanIndexForward: false, // los más recientes primero
+      })
+    ),
+    db.send(
+      new GetCommand({
+        TableName: TABLE,
+        Key: { titleId: "#ratings", sk: titleId },
+      })
+    ),
+  ]);
+
+  // Solo se exponen estos campos: nunca el hash de la IP ni el estado
+  const comments = (out.Items ?? []).map(
+    ({ nickname, text, rating, createdAt }) => ({
+      nickname,
+      text,
+      rating,
+      createdAt,
+    })
+  );
+  return json(200, { comments, stats: stats(st.Item) });
+}
+
+// GET /ratings -> media y número de notas de todas las películas valoradas
+async function listRatings() {
   const out = await db.send(
     new QueryCommand({
       TableName: TABLE,
       KeyConditionExpression: "titleId = :t",
-      FilterExpression: "#s = :a",
-      ExpressionAttributeNames: { "#s": "status" },
-      ExpressionAttributeValues: { ":t": titleId, ":a": "approved" },
-      ScanIndexForward: false, // los más recientes primero
+      ExpressionAttributeValues: { ":t": "#ratings" },
     })
   );
-
-  const comments = (out.Items ?? []).map(({ nickname, text, createdAt }) => ({
-    nickname,
-    text,
-    createdAt,
-  }));
-  return json(200, { comments });
+  const ratings = (out.Items ?? [])
+    .filter((i) => i.count > 0)
+    .map((i) => ({ titleId: i.sk, ...stats(i) }));
+  return json(200, { ratings }, { "cache-control": "public, max-age=60" });
 }
 
-// POST /comments {titleId, nickname, text} -> se guarda como "pending"
+// POST /comments {titleId, nickname, text, rating, turnstileToken} -> "pending"
 async function createComment(event) {
   if (!ENABLED) return json(503, { error: "comments_disabled" });
 
@@ -121,9 +161,13 @@ async function createComment(event) {
   const titleId = String(data.titleId ?? "");
   const nickname = String(data.nickname ?? "").trim();
   const text = String(data.text ?? "").trim();
+  const rating = Number(data.rating);
 
   if (!TITLE_RE.test(titleId)) return json(400, { error: "invalid_title" });
   if (!NICK_RE.test(nickname)) return json(400, { error: "invalid_nickname" });
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return json(400, { error: "invalid_rating" });
+  }
   if (
     text.length < 1 ||
     text.length > MAX_TEXT ||
@@ -134,6 +178,15 @@ async function createComment(event) {
   }
 
   const ip = event.requestContext.http.sourceIp ?? "unknown";
+
+  // Identificador estable de la IP, solo para poder banearla. Se guarda con
+  // el comentario (nunca se expone) y permite al script de moderación
+  // banear a quien lo escribió sin conocer su IP en claro.
+  const ipId = createHash("sha256").update(`ban|${ip}`).digest("hex").slice(0, 32);
+  const banned = await db.send(
+    new GetCommand({ TableName: TABLE, Key: { titleId: "#bans", sk: ipId } })
+  );
+  if (banned.Item) return json(403, { error: "forbidden" });
 
   // CAPTCHA (Cloudflare Turnstile), verificado en el servidor. Va después
   // de la validación barata y antes de los contadores: un token falso no
@@ -148,7 +201,7 @@ async function createComment(event) {
   // Primero el de la IP: así una sola IP nunca puede gastar más de IP_CAP
   // del tope global.
   const day = new Date().toISOString().slice(0, 10);
-  // La IP no se guarda en claro, solo un hash que caduca a los 2 días
+  // La IP de los contadores no se guarda en claro, solo un hash que caduca
   const ipHash = createHash("sha256")
     .update(`${day}|${TABLE}|${ip}`)
     .digest("hex")
@@ -170,6 +223,8 @@ async function createComment(event) {
         sk: `${createdAt}#${randomUUID()}`,
         nickname,
         text,
+        rating,
+        ipId,
         status: "pending",
         createdAt,
       },
@@ -182,7 +237,11 @@ async function createComment(event) {
 export const handler = async (event) => {
   try {
     const method = event.requestContext.http.method;
-    if (method === "GET") return await listComments(event);
+    if (method === "GET") {
+      return event.rawPath === "/ratings"
+        ? await listRatings()
+        : await listComments(event);
+    }
     if (method === "POST") return await createComment(event);
     return json(405, { error: "method_not_allowed" });
   } catch (err) {

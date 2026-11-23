@@ -1,3 +1,5 @@
+import type { Rating } from '../data/rating'
+
 const API_URL = import.meta.env.VITE_COMMENTS_API_URL as string | undefined
 
 export const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as
@@ -10,6 +12,7 @@ export const COMMENTS_ENABLED = Boolean(API_URL && SITE_KEY)
 export type Comment = {
   nickname: string
   text: string
+  rating?: number // los comentarios antiguos no tienen nota
   createdAt: string
 }
 
@@ -17,6 +20,7 @@ type NewComment = {
   titleId: number
   nickname: string
   text: string
+  rating: number
   turnstileToken: string
 }
 
@@ -27,6 +31,22 @@ export async function fetchComments(titleId: number): Promise<Comment[]> {
   if (!res.ok) throw new Error('fetch_failed')
   const data = (await res.json()) as { comments: Comment[] }
   return data.comments
+}
+
+// Medias de todas las películas valoradas, indexadas por id de TMDB
+export async function fetchRatings(): Promise<Record<number, Rating>> {
+  if (!API_URL) return {}
+  const res = await fetch(`${API_URL}/ratings`)
+  if (!res.ok) throw new Error('fetch_failed')
+  const data = (await res.json()) as {
+    ratings: { titleId: string; count: number; average: number }[]
+  }
+  return Object.fromEntries(
+    data.ratings.map((r) => [
+      Number(r.titleId),
+      { count: r.count, average: r.average },
+    ]),
+  )
 }
 
 export async function postComment(input: NewComment): Promise<PostResult> {

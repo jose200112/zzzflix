@@ -51,9 +51,19 @@ function loadTurnstile(): Promise<void> {
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u
 const URL_RE = /(https?:\/\/|www\.)/i
 
+const RATING_HINTS = [
+  '',
+  'Me mantuvo despierto',
+  'Algún bostezo',
+  'Cabeceé un poco',
+  'Dormí a ratos',
+  'Dormí como un bebé',
+]
+
 const ERRORS: Record<string, string> = {
   invalid_nickname:
     'El apodo debe tener entre 2 y 20 caracteres: letras, números, espacios, _ o -.',
+  invalid_rating: 'Elige cuánto te ha dormido, de 1 a 5.',
   invalid_text:
     'El comentario debe tener entre 1 y 500 caracteres, sin enlaces ni los símbolos < >.',
   ip_limit: 'Has alcanzado el límite de comentarios de hoy. Vuelve mañana.',
@@ -79,6 +89,7 @@ function Comments({ titleId }: CommentsProps) {
   const [loadError, setLoadError] = useState(false)
   const [nickname, setNickname] = useState('')
   const [text, setText] = useState('')
+  const [rating, setRating] = useState(0)
   const [token, setToken] = useState('')
   const [sending, setSending] = useState(false)
   const [message, setMessage] = useState<Message | null>(null)
@@ -140,6 +151,10 @@ function Comments({ titleId }: CommentsProps) {
       setMessage({ kind: 'error', text: ERRORS.invalid_nickname })
       return
     }
+    if (rating < 1 || rating > 5) {
+      setMessage({ kind: 'error', text: ERRORS.invalid_rating })
+      return
+    }
     if (
       body.length < 1 ||
       body.length > 500 ||
@@ -163,6 +178,7 @@ function Comments({ titleId }: CommentsProps) {
       titleId,
       nickname: nick,
       text: body,
+      rating,
       turnstileToken: token,
     })
     setSending(false)
@@ -175,9 +191,10 @@ function Comments({ titleId }: CommentsProps) {
 
     if (result.ok) {
       setText('')
+      setRating(0)
       setMessage({
         kind: 'ok',
-        text: '¡Gracias! Tu comentario se publicará cuando sea aprobado.',
+        text: '¡Gracias! Tu comentario y tu nota se publicarán cuando sean aprobados.',
       })
     } else {
       setMessage({
@@ -213,6 +230,31 @@ function Comments({ titleId }: CommentsProps) {
             autoComplete="nickname"
           />
         </label>
+        <fieldset className="rating-field">
+          <legend>¿Cuánto te ha dormido?</legend>
+          <div className="rating-options">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <label
+                key={n}
+                className={`rating-option ${rating === n ? 'selected' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="rating"
+                  value={n}
+                  checked={rating === n}
+                  onChange={() => setRating(n)}
+                />
+                <span>{n}</span>
+              </label>
+            ))}
+          </div>
+          <span className="rating-hint">
+            {rating > 0
+              ? `${'💤'.repeat(rating)} ${RATING_HINTS[rating]}`
+              : '1 = nada, 5 = a dormir'}
+          </span>
+        </fieldset>
         <label>
           Comentario
           <textarea
@@ -232,7 +274,7 @@ function Comments({ titleId }: CommentsProps) {
           </p>
         )}
         <p className="form-note">
-          Los comentarios se revisan antes de publicarse.
+          Los comentarios y las notas se revisan antes de publicarse.
         </p>
       </form>
 
@@ -248,6 +290,11 @@ function Comments({ titleId }: CommentsProps) {
             <li key={`${c.createdAt}-${c.nickname}`} className="comment">
               <div className="comment-meta">
                 <strong>{c.nickname}</strong>
+                {c.rating ? (
+                  <span aria-label={`Nota: ${c.rating} de 5`}>
+                    {'💤'.repeat(c.rating)}
+                  </span>
+                ) : null}
                 <span>{new Date(c.createdAt).toLocaleDateString('es-ES')}</span>
               </div>
               {/* React escapa el texto: nunca se interpreta como HTML */}

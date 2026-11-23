@@ -1,3 +1,5 @@
+import type { Rating } from './rating'
+
 export type Title = {
   id: number
   title: string
@@ -6,5 +8,6 @@ export type Title = {
   overview: string
   posterUrl: string | null
   runtime: number | null
-  sleepScore: 1 | 2 | 3 | 4 | 5
+  // null = nadie lo ha valorado todavía
+  rating: Rating | null
 }

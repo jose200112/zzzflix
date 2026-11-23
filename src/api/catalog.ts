@@ -6,7 +6,8 @@ export async function loadCatalog(): Promise<Title[]> {
   const results = await Promise.allSettled(
     curated.map(async (c) => {
       const t = await fetchTitle(c.tmdbId, c.type)
-      return { ...t, type: c.type, sleepScore: c.sleepScore }
+      // La nota llega aparte (API de comentarios) y se une en App
+      return { ...t, type: c.type, rating: null }
     }),
   )
 
