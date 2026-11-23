@@ -6,6 +6,11 @@
 //   npm run catalog                              regenera catalog.json
 //   npm run catalog:add -- "Título" 1975 [movie|series]
 //                                                busca en TMDB y añade a curated.json
+//   npm run catalog:discover [-- --pages 15 --limit 250 --min-runtime 140
+//                               --min-votes 150 --max-votes 6000 --min-rating 6.8]
+//                                                propone películas largas y bien valoradas
+//                                                (src/data/discovered.json). Lo que hay
+//                                                en curated.json siempre tiene prioridad.
 //
 // El token se lee de TMDB_TOKEN o de VITE_TMDB_TOKEN (.env.local).
 
@@ -14,6 +19,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 const BASE = 'https://api.themoviedb.org/3'
 const IMAGE = 'https://image.tmdb.org/t/p/w342'
 const CURATED = new URL('../src/data/curated.json', import.meta.url)
+const DISCOVERED = new URL('../src/data/discovered.json', import.meta.url)
 const CATALOG = new URL('../src/data/catalog.json', import.meta.url)
 
 const token = process.env.TMDB_TOKEN ?? process.env.VITE_TMDB_TOKEN
@@ -35,9 +41,22 @@ async function tmdb(path, params = {}) {
   return res.json()
 }
 
-async function readCurated() {
-  return JSON.parse(await readFile(CURATED, 'utf8'))
+async function readJson(url) {
+  try {
+    return JSON.parse(await readFile(url, 'utf8'))
+  } catch (err) {
+    if (err.code === 'ENOENT') return []
+    throw err
+  }
 }
+
+const readCurated = () => readJson(CURATED)
+const keyOf = (c) => `${c.type}:${c.tmdbId}`
+
+// Los descubiertos se vuelven a comprobar con los datos reales de la ficha:
+// el filtro de duración de TMDB no siempre coincide, y sin sinopsis en
+// español la tarjeta queda vacía. Los de curated.json entran siempre.
+const MIN_DISCOVERED_RUNTIME = 140
 
 async function fetchTitle({ tmdbId, type }) {
   const data = await tmdb(`/${type === 'movie' ? 'movie' : 'tv'}/${tmdbId}`)
@@ -53,15 +72,30 @@ async function fetchTitle({ tmdbId, type }) {
 }
 
 async function build() {
+  // La lista manual va primero y manda sobre lo descubierto
   const curated = await readCurated()
-  const titles = []
+  const seen = new Set(curated.map(keyOf))
+  const discovered = (await readJson(DISCOVERED)).filter((d) => !seen.has(keyOf(d)))
+  const all = [...curated, ...discovered]
+
+  const fetched = []
   // De 10 en 10, para no pasarse del límite de peticiones de TMDB
-  for (let i = 0; i < curated.length; i += 10) {
-    const batch = curated.slice(i, i + 10)
-    titles.push(...(await Promise.all(batch.map(fetchTitle))))
+  for (let i = 0; i < all.length; i += 10) {
+    const batch = all.slice(i, i + 10)
+    fetched.push(...(await Promise.all(batch.map(fetchTitle))))
   }
+  const titles = fetched.filter(
+    (t, i) =>
+      i < curated.length ||
+      (t.overview && (t.runtime ?? 0) >= MIN_DISCOVERED_RUNTIME),
+  )
+  const dropped = fetched.length - titles.length
   await writeFile(CATALOG, JSON.stringify(titles, null, 2) + '\n')
-  console.log(`catalog.json generado con ${titles.length} títulos.`)
+  console.log(
+    `catalog.json generado con ${titles.length} títulos ` +
+      `(${curated.length} manuales + ${titles.length - curated.length} descubiertos; ` +
+      `${dropped} descartados por duración o sin sinopsis).`,
+  )
 }
 
 async function add(args) {
@@ -103,9 +137,64 @@ async function add(args) {
   console.log(`✓ Añadida: ${match.title ?? match.name} (${yearOf(match)}) [${match.id}]`)
 }
 
+function numberFlag(args, name, fallback) {
+  const i = args.indexOf(`--${name}`)
+  if (i === -1) return fallback
+  const value = Number(args[i + 1])
+  if (!Number.isFinite(value)) {
+    console.error(`Valor no válido para --${name}`)
+    process.exit(1)
+  }
+  return value
+}
+
+// Propone películas largas, bien valoradas y de público medio (sin blockbusters)
+async function discover(args) {
+  const pages = numberFlag(args, 'pages', 15)
+  const limit = numberFlag(args, 'limit', 250)
+  const params = {
+    include_adult: false,
+    sort_by: 'vote_average.desc',
+    'with_runtime.gte': numberFlag(args, 'min-runtime', 140),
+    'vote_count.gte': numberFlag(args, 'min-votes', 150),
+    'vote_count.lte': numberFlag(args, 'max-votes', 6000),
+    'vote_average.gte': numberFlag(args, 'min-rating', 6.8),
+    // acción, aventura, animación, familiar y película de TV
+    without_genres: '28,12,16,10751,10770',
+  }
+
+  const curated = await readCurated()
+  const taken = new Set(curated.map(keyOf))
+  const found = []
+
+  for (let page = 1; page <= pages && found.length < limit; page++) {
+    const data = await tmdb('/discover/movie', { ...params, page })
+    for (const r of data.results) {
+      const entry = {
+        tmdbId: r.id,
+        type: 'movie',
+        name: r.title,
+        year: Number((r.release_date ?? '0').slice(0, 4)),
+      }
+      // Sin póster la tarjeta queda fea: se descarta
+      if (!r.poster_path || taken.has(keyOf(entry))) continue
+      taken.add(keyOf(entry))
+      found.push(entry)
+    }
+    if (page >= data.total_pages) break
+  }
+
+  const result = found.slice(0, limit)
+  await writeFile(DISCOVERED, JSON.stringify(result, null, 2) + '\n')
+  console.log(`discovered.json: ${result.length} películas propuestas. Las primeras:`)
+  for (const e of result.slice(0, 15)) console.log(`  ${e.name} (${e.year})`)
+  console.log('Revisa src/data/discovered.json y lanza "npm run catalog".')
+}
+
 const [command = 'build', ...rest] = process.argv.slice(2)
 if (command === 'build') await build()
 else if (command === 'add') await add(rest)
+else if (command === 'discover') await discover(rest)
 else {
   console.error(`Comando desconocido: ${command}`)
   process.exit(1)

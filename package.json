@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "catalog": "node --env-file=.env.local scripts/catalog.mjs build",
-    "catalog:add": "node --env-file=.env.local scripts/catalog.mjs add"
+    "catalog:add": "node --env-file=.env.local scripts/catalog.mjs add",
+    "catalog:discover": "node --env-file=.env.local scripts/catalog.mjs discover"
   },
   "dependencies": {
     "react": "^19.3.1",
