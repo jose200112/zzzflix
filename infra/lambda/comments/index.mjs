@@ -7,6 +7,7 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { createHash, randomUUID } from "node:crypto";
+import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const TABLE = process.env.TABLE_NAME;
@@ -15,7 +16,22 @@ const TABLE = process.env.TABLE_NAME;
 const ENABLED = process.env.COMMENTS_ENABLED === "true"; // interruptor de emergencia
 const DAILY_CAP = Number(process.env.DAILY_CAP ?? 50); // comentarios al día en total
 const IP_CAP = Number(process.env.IP_CAP ?? 3); // comentarios al día por IP
-const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET ?? ""; // clave secreta de Turnstile
+const TURNSTILE_PARAM = process.env.TURNSTILE_SECRET_PARAM ?? ""; // nombre del parámetro en SSM
+
+// La clave secreta de Turnstile vive en SSM Parameter Store (SecureString).
+// Se lee la primera vez que hace falta y se guarda en memoria mientras la
+// Lambda siga caliente. Si la lectura falla no se cachea nada y se reintenta.
+const ssm = new SSMClient({});
+let turnstileSecret = null;
+async function getTurnstileSecret() {
+  if (turnstileSecret === null) {
+    const out = await ssm.send(
+      new GetParameterCommand({ Name: TURNSTILE_PARAM, WithDecryption: true })
+    );
+    turnstileSecret = out.Parameter?.Value ?? "";
+  }
+  return turnstileSecret;
+}
 
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u;
 const TITLE_RE = /^\d{1,10}$/;
@@ -78,7 +94,7 @@ async function verifyTurnstile(token, ip) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          secret: TURNSTILE_SECRET,
+          secret: await getTurnstileSecret(),
           response: token,
           remoteip: ip,
         }),
