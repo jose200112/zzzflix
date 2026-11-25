@@ -6,7 +6,7 @@ import {
   QueryCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { createHash, randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -31,6 +31,31 @@ async function getTurnstileSecret() {
     turnstileSecret = out.Parameter?.Value ?? "";
   }
   return turnstileSecret;
+}
+
+// Sal de los hashes de IP. Vive en SSM (se crea a mano con la CLI) y se cachea
+// en memoria. Si falta, la función falla: nunca se cae a un hash sin sal.
+const IP_SALT_PARAM = process.env.IP_SALT_PARAM;
+let ipSalt = null;
+async function getIpSalt() {
+  if (ipSalt === null) {
+    const out = await ssm.send(
+      new GetParameterCommand({ Name: IP_SALT_PARAM, WithDecryption: true })
+    );
+    const value = out.Parameter?.Value ?? "";
+    if (!value) throw new Error("ip salt missing");
+    ipSalt = value;
+  }
+  return ipSalt;
+}
+
+// HMAC-SHA256 con la sal, recortado a 32 hex. Sin la sal no se puede recuperar
+// la IP probando las ~4.300 millones de direcciones IPv4.
+async function ipDigest(message) {
+  return createHmac("sha256", await getIpSalt())
+    .update(message)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u;
@@ -198,7 +223,7 @@ async function createComment(event) {
   // Identificador estable de la IP, solo para poder banearla. Se guarda con
   // el comentario (nunca se expone) y permite al script de moderación
   // banear a quien lo escribió sin conocer su IP en claro.
-  const ipId = createHash("sha256").update(`ban|${ip}`).digest("hex").slice(0, 32);
+  const ipId = await ipDigest(`ban|${ip}`);
   const banned = await db.send(
     new GetCommand({ TableName: TABLE, Key: { titleId: "#bans", sk: ipId } })
   );
@@ -218,10 +243,7 @@ async function createComment(event) {
   // del tope global.
   const day = new Date().toISOString().slice(0, 10);
   // La IP de los contadores no se guarda en claro, solo un hash que caduca
-  const ipHash = createHash("sha256")
-    .update(`${day}|${TABLE}|${ip}`)
-    .digest("hex")
-    .slice(0, 32);
+  const ipHash = await ipDigest(`${day}|${TABLE}|${ip}`);
 
   if (!(await bump(`ip#${day}#${ipHash}`, IP_CAP))) {
     return json(429, { error: "ip_limit" });

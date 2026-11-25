@@ -15,6 +15,7 @@ Qué hace:
 """
 
 import hashlib
+import hmac
 import sys
 import unicodedata
 
@@ -24,9 +25,12 @@ from botocore.exceptions import ClientError
 
 REGION = "eu-north-1"
 TABLE = "zzzflix-comments"
+SALT_PARAM = "/zzzflix/ip-salt"
 
 db = boto3.resource("dynamodb", region_name=REGION)
 table = db.Table(TABLE)
+ssm = boto3.client("ssm", region_name=REGION)
+_salt = None
 
 
 # --- Utilidades ---------------------------------------------------
@@ -38,9 +42,18 @@ def clean(s):
     return "".join(c for c in str(s) if unicodedata.category(c)[0] != "C")
 
 
+def _ip_salt():
+    global _salt
+    if _salt is None:
+        out = ssm.get_parameter(Name=SALT_PARAM, WithDecryption=True)
+        _salt = out["Parameter"]["Value"]
+    return _salt
+
+
 def ip_id(ip):
-    # Debe ser idéntico a la Lambda: sha256("ban|" + ip) recortado a 32
-    return hashlib.sha256(f"ban|{ip}".encode()).hexdigest()[:32]
+    # Debe ser idéntico a la Lambda: HMAC-SHA256("ban|" + ip) con la sal de SSM,
+    # recortado a 32 caracteres hex
+    return hmac.new(_ip_salt().encode(), f"ban|{ip}".encode(), hashlib.sha256).hexdigest()[:32]
 
 
 def fetch(status):
