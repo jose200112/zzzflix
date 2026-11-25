@@ -27,6 +27,8 @@ variable "ip_comment_cap" {
 # por su estado; aquí solo se referencia por nombre.
 locals {
   turnstile_param_name = "/${var.project_name}/turnstile-secret"
+  # Sal de los hashes de IP: también se crea a mano con la CLI (aws ssm put-parameter)
+  ip_salt_param_name = "/${var.project_name}/ip-salt"
 }
 
 data "aws_region" "comments" {}
@@ -107,11 +109,14 @@ resource "aws_iam_role_policy" "comments_db" {
   policy = data.aws_iam_policy_document.comments_db.json
 }
 
-# Permiso mínimo: leer solo el parámetro de la clave de Turnstile
+# Permiso mínimo: leer solo los parámetros de Turnstile y de la sal de IP
 data "aws_iam_policy_document" "comments_ssm" {
   statement {
-    actions   = ["ssm:GetParameter"]
-    resources = ["arn:aws:ssm:${data.aws_region.comments.region}:${data.aws_caller_identity.comments.account_id}:parameter${local.turnstile_param_name}"]
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:${data.aws_region.comments.region}:${data.aws_caller_identity.comments.account_id}:parameter${local.turnstile_param_name}",
+      "arn:aws:ssm:${data.aws_region.comments.region}:${data.aws_caller_identity.comments.account_id}:parameter${local.ip_salt_param_name}",
+    ]
   }
 }
 
@@ -144,6 +149,7 @@ resource "aws_lambda_function" "comments" {
       DAILY_CAP              = tostring(var.daily_comment_cap)
       IP_CAP                 = tostring(var.ip_comment_cap)
       TURNSTILE_SECRET_PARAM = local.turnstile_param_name
+      IP_SALT_PARAM          = local.ip_salt_param_name
     }
   }
 
