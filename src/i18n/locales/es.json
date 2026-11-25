@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "title": "ZZZFlix — Películas y series que te dejarán dormido"
+  },
+  "nav": {
+    "home": "Inicio",
+    "movies": "Películas",
+    "series": "Series",
+    "sleepiest": "Más soporíferas",
+    "favorites": "Mis favoritos",
+    "language": "Idioma"
+  },
+  "app": {
+    "loading": "Cargando catálogo…",
+    "loadError": "No se pudo cargar el catálogo. Inténtalo más tarde.",
+    "noFavorites": "Aún no tienes favoritos."
+  },
+  "list": {
+    "searchPlaceholder": "Buscar por título o año…",
+    "searchLabel": "Buscar títulos",
+    "count_one": "{{count}} título",
+    "count_other": "{{count}} títulos",
+    "noResults": "No hay resultados para «{{query}}».",
+    "pagination": "Paginación",
+    "prev": "← Anterior",
+    "next": "Siguiente →"
+  },
+  "card": {
+    "posterAlt": "Póster de {{title}}",
+    "noPoster": "Sin póster",
+    "noOverview": "Sin sinopsis disponible.",
+    "favorite": "★ Favorito",
+    "addFavorite": "☆ Añadir a favoritos",
+    "min": "{{count}} min"
+  },
+  "detail": {
+    "notFound": "Este título no existe.",
+    "backHome": "← Volver al inicio",
+    "back": "← Volver",
+    "movie": "Película",
+    "series": "Serie",
+    "synopsis": "Sinopsis"
+  },
+  "rating": {
+    "unrated": "Sin valorar",
+    "votes_one": "{{count}} voto",
+    "votes_other": "{{count}} votos",
+    "aria": "Nivel de soporífero: {{avg}} de 5, {{votes}}"
+  },
+  "comments": {
+    "title": "Comentarios",
+    "unavailable": "Los comentarios no están disponibles ahora mismo.",
+    "formTitle": "Deja tu comentario",
+    "nickname": "Apodo",
+    "ratingLegend": "¿Cuánto te ha dormido?",
+    "ratingDefault": "1 = nada, 5 = a dormir",
+    "ratingHint_1": "Me mantuvo despierto",
+    "ratingHint_2": "Algún bostezo",
+    "ratingHint_3": "Cabeceé un poco",
+    "ratingHint_4": "Dormí a ratos",
+    "ratingHint_5": "Dormí como un bebé",
+    "commentLabel": "Comentario",
+    "send": "Enviar comentario",
+    "sending": "Enviando…",
+    "note": "Los comentarios y las notas se revisan antes de publicarse.",
+    "listTitle": "Lo que dicen",
+    "loadError": "No se han podido cargar los comentarios.",
+    "loading": "Cargando comentarios…",
+    "empty": "Aún no hay comentarios. ¡Sé el primero!",
+    "ratingAria": "Nota: {{rating}} de 5",
+    "sent": "¡Gracias! Tu comentario y tu nota se publicarán cuando sean aprobados.",
+    "completeCaptcha": "Completa la verificación antes de enviar.",
+    "errors": {
+      "invalid_nickname": "El apodo debe tener entre 2 y 20 caracteres: letras, números, espacios, _ o -.",
+      "invalid_rating": "Elige cuánto te ha dormido, de 1 a 5.",
+      "invalid_text": "El comentario debe tener entre 1 y 500 caracteres, sin enlaces ni los símbolos < >.",
+      "ip_limit": "Has alcanzado el límite de comentarios de hoy. Vuelve mañana.",
+      "daily_limit": "Hoy ya se han enviado demasiados comentarios en total. Inténtalo mañana.",
+      "captcha_failed": "No hemos podido verificar que eres una persona. Inténtalo de nuevo.",
+      "captcha_unavailable": "La verificación no está disponible ahora mismo. Inténtalo en un rato.",
+      "comments_disabled": "Los comentarios están cerrados temporalmente.",
+      "throttled": "Demasiadas peticiones seguidas. Espera unos segundos.",
+      "network": "No se ha podido conectar. Revisa tu conexión.",
+      "unknown": "No se ha podido enviar el comentario. Inténtalo más tarde."
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "title": "ZZZFlix — Filme und Serien, bei denen du einschläfst"
+  },
+  "nav": {
+    "home": "Start",
+    "movies": "Filme",
+    "series": "Serien",
+    "sleepiest": "Am einschläferndsten",
+    "favorites": "Meine Favoriten",
+    "language": "Sprache"
+  },
+  "app": {
+    "loading": "Katalog wird geladen…",
+    "loadError": "Der Katalog konnte nicht geladen werden. Versuche es später noch einmal.",
+    "noFavorites": "Du hast noch keine Favoriten."
+  },
+  "list": {
+    "searchPlaceholder": "Nach Titel oder Jahr suchen…",
+    "searchLabel": "Titel suchen",
+    "count_one": "{{count}} Titel",
+    "count_other": "{{count}} Titel",
+    "noResults": "Keine Ergebnisse für „{{query}}“.",
+    "pagination": "Seitennavigation",
+    "prev": "← Zurück",
+    "next": "Weiter →"
+  },
+  "card": {
+    "posterAlt": "Poster von {{title}}",
+    "noPoster": "Kein Poster",
+    "noOverview": "Keine Inhaltsangabe verfügbar.",
+    "favorite": "★ Favorit",
+    "addFavorite": "☆ Zu Favoriten hinzufügen",
+    "min": "{{count}} Min."
+  },
+  "detail": {
+    "notFound": "Diesen Titel gibt es nicht.",
+    "backHome": "← Zurück zum Start",
+    "back": "← Zurück",
+    "movie": "Film",
+    "series": "Serie",
+    "synopsis": "Handlung"
+  },
+  "rating": {
+    "unrated": "Noch nicht bewertet",
+    "votes_one": "{{count}} Stimme",
+    "votes_other": "{{count}} Stimmen",
+    "aria": "Einschläferungsgrad: {{avg}} von 5, {{votes}}"
+  },
+  "comments": {
+    "title": "Kommentare",
+    "unavailable": "Kommentare sind gerade nicht verfügbar.",
+    "formTitle": "Hinterlasse einen Kommentar",
+    "nickname": "Spitzname",
+    "ratingLegend": "Wie sehr hat dich das eingeschläfert?",
+    "ratingDefault": "1 = gar nicht, 5 = tief und fest eingeschlafen",
+    "ratingHint_1": "Hat mich wachgehalten",
+    "ratingHint_2": "Ab und zu gegähnt",
+    "ratingHint_3": "Kurz eingenickt",
+    "ratingHint_4": "Phasenweise geschlafen",
+    "ratingHint_5": "Geschlafen wie ein Baby",
+    "commentLabel": "Kommentar",
+    "send": "Kommentar senden",
+    "sending": "Wird gesendet…",
+    "note": "Kommentare und Bewertungen werden vor der Veröffentlichung geprüft.",
+    "listTitle": "Was andere sagen",
+    "loadError": "Die Kommentare konnten nicht geladen werden.",
+    "loading": "Kommentare werden geladen…",
+    "empty": "Noch keine Kommentare. Sei der Erste!",
+    "ratingAria": "Bewertung: {{rating}} von 5",
+    "sent": "Danke! Dein Kommentar und deine Bewertung werden veröffentlicht, sobald sie freigegeben sind.",
+    "completeCaptcha": "Bitte schließe die Verifizierung ab, bevor du sendest.",
+    "errors": {
+      "invalid_nickname": "Der Spitzname muss 2 bis 20 Zeichen lang sein: Buchstaben, Zahlen, Leerzeichen, _ oder -.",
+      "invalid_rating": "Wähle, wie sehr dich das eingeschläfert hat, von 1 bis 5.",
+      "invalid_text": "Der Kommentar muss 1 bis 500 Zeichen lang sein, ohne Links und ohne die Zeichen < >.",
+      "ip_limit": "Du hast das heutige Kommentarlimit erreicht. Komm morgen wieder.",
+      "daily_limit": "Heute wurden insgesamt schon zu viele Kommentare gesendet. Versuche es morgen noch einmal.",
+      "captcha_failed": "Wir konnten nicht bestätigen, dass du ein Mensch bist. Bitte versuche es erneut.",
+      "captcha_unavailable": "Die Verifizierung ist gerade nicht verfügbar. Versuche es in Kürze noch einmal.",
+      "comments_disabled": "Die Kommentare sind vorübergehend geschlossen.",
+      "throttled": "Zu viele Anfragen hintereinander. Warte einen Moment.",
+      "network": "Verbindung fehlgeschlagen. Prüfe deine Internetverbindung.",
+      "unknown": "Der Kommentar konnte nicht gesendet werden. Versuche es später noch einmal."
+    }
+  }
+}

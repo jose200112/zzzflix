@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import type { Title } from '../data/titles'
 import SleepRating from '../components/SleepRating'
 import Comments from '../components/Comments'
@@ -10,14 +11,15 @@ type TitleDetailProps = {
 }
 
 function TitleDetail({ titles, favoriteIds, onToggleFavorite }: TitleDetailProps) {
+  const { t } = useTranslation()
   const { id } = useParams()
   const title = titles.find((t) => t.id === Number(id))
 
   if (!title) {
     return (
       <section className="detail">
-        <p>Este título no existe.</p>
-        <Link to="/" className="back-link">← Volver al inicio</Link>
+        <p>{t('detail.notFound')}</p>
+        <Link to="/" className="back-link">{t('detail.backHome')}</Link>
       </section>
     )
   } 
@@ -26,34 +28,34 @@ function TitleDetail({ titles, favoriteIds, onToggleFavorite }: TitleDetailProps
 
   return (
     <section className="detail">
-      <Link to="/" className="back-link">← Volver</Link>
+      <Link to="/" className="back-link">{t('detail.back')}</Link>
 
       <div className="detail-header">
         {title.posterUrl && (
           <img
             className="detail-poster"
             src={title.posterUrl}
-            alt={`Póster de ${title.title}`}
+            alt={t('card.posterAlt', { title: title.title })}
           />
         )}
         <div>
           <h1>{title.title}</h1>
           <p className="year">
-            {title.year} · {title.type === 'movie' ? 'Película' : 'Serie'}
-            {title.runtime ? ` · ${title.runtime} min` : ''}
+            {title.year} · {title.type === 'movie' ? t('detail.movie') : t('detail.series')}
+            {title.runtime ? ` · ${t('card.min', { count: title.runtime })}` : ''}
           </p>
           <SleepRating rating={title.rating} />
           <button
             className={`fav-btn ${isFavorite ? 'active' : ''}`}
             onClick={() => onToggleFavorite(title.id)}
           >
-            {isFavorite ? '★ Favorito' : '☆ Añadir a favoritos'}
+            {isFavorite ? t('card.favorite') : t('card.addFavorite')}
           </button>
         </div>
       </div>
 
-      <h2>Sinopsis</h2>
-      <p>{title.overview || 'Sin sinopsis disponible.'}</p>
+      <h2>{t('detail.synopsis')}</h2>
+      <p>{title.overview || t('card.noOverview')}</p>
 
       <Comments key={title.id} titleId={title.id} />
     </section>

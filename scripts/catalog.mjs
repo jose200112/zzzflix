@@ -1,9 +1,10 @@
 // Catálogo de zzzflix: descarga los datos de TMDB UNA vez y los guarda en
-// src/data/catalog.json. La web carga ese fichero, así que ya no llama a TMDB
-// desde el navegador (más rápido y sin token público en el frontend).
+// src/data/catalog/ (base.json con los datos comunes y un archivo por idioma:
+// es.json, en.json, de.json). La web carga esos ficheros, así que ya no llama a
+// TMDB desde el navegador (más rápido y sin token público en el frontend).
 //
 // Uso (desde la raíz del proyecto):
-//   npm run catalog                              regenera catalog.json
+//   npm run catalog                              regenera src/data/catalog/
 //   npm run catalog:add -- "Título" 1975 [movie|series]
 //                                                busca en TMDB y añade a curated.json
 //   npm run catalog:discover [-- --pages 15 --limit 250 --min-runtime 140
@@ -14,13 +15,22 @@
 //
 // El token se lee de TMDB_TOKEN o de VITE_TMDB_TOKEN (.env.local).
 
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
 const BASE = 'https://api.themoviedb.org/3'
 const IMAGE = 'https://image.tmdb.org/t/p/w342'
 const CURATED = new URL('../src/data/curated.json', import.meta.url)
 const DISCOVERED = new URL('../src/data/discovered.json', import.meta.url)
-const CATALOG = new URL('../src/data/catalog.json', import.meta.url)
+const CATALOG_DIR = new URL('../src/data/catalog/', import.meta.url)
+
+// Idiomas de la web y su código en TMDB. Si TMDB no tiene la sinopsis o el
+// póster en un idioma, se usa el primero que exista en este orden de respaldo.
+const LANGS = { es: 'es-ES', en: 'en-US', de: 'de-DE' }
+const FALLBACK = {
+  es: ['es', 'en', 'de'],
+  en: ['en', 'es', 'de'],
+  de: ['de', 'en', 'es'],
+}
 
 const token = process.env.TMDB_TOKEN ?? process.env.VITE_TMDB_TOKEN
 if (!token) {
@@ -28,17 +38,26 @@ if (!token) {
   process.exit(1)
 }
 
-async function tmdb(path, params = {}) {
+async function tmdb(path, params = {}, language = 'es-ES') {
   const url = new URL(BASE + path)
-  url.searchParams.set('language', 'es-ES')
+  url.searchParams.set('language', language)
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, String(value))
   }
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, accept: 'application/json' },
-  })
-  if (!res.ok) throw new Error(`TMDB respondió ${res.status} en ${path}`)
-  return res.json()
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, accept: 'application/json' },
+    })
+    // Si TMDB frena (429), se espera lo que pide y se reintenta
+    if (res.status === 429 && attempt < 4) {
+      const asked = Number(res.headers.get('retry-after'))
+      const seconds = Number.isFinite(asked) && asked > 0 ? asked : 2
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+      continue
+    }
+    if (!res.ok) throw new Error(`TMDB respondió ${res.status} en ${path}`)
+    return res.json()
+  }
 }
 
 async function readJson(url) {
@@ -58,17 +77,37 @@ const keyOf = (c) => `${c.type}:${c.tmdbId}`
 // español la tarjeta queda vacía. Los de curated.json entran siempre.
 const MIN_DISCOVERED_RUNTIME = 140
 
+// Pide la ficha en los tres idiomas. Los datos comunes salen de la ficha en
+// español; los textos de cada idioma, con respaldo si falta alguno.
 async function fetchTitle({ tmdbId, type }) {
-  const data = await tmdb(`/${type === 'movie' ? 'movie' : 'tv'}/${tmdbId}`)
-  return {
-    id: data.id,
-    title: data.title ?? data.name,
-    year: Number((data.release_date ?? data.first_air_date ?? '0').slice(0, 4)),
+  const path = `/${type === 'movie' ? 'movie' : 'tv'}/${tmdbId}`
+  const codes = Object.keys(LANGS)
+  const sheets = Object.fromEntries(
+    await Promise.all(codes.map(async (c) => [c, await tmdb(path, {}, LANGS[c])])),
+  )
+  const es = sheets.es
+
+  const base = {
+    id: es.id,
+    year: Number((es.release_date ?? es.first_air_date ?? '0').slice(0, 4)),
     type,
-    overview: data.overview ?? '',
-    posterUrl: data.poster_path ? `${IMAGE}${data.poster_path}` : null,
-    runtime: data.runtime ?? data.episode_run_time?.[0] ?? null,
+    runtime: es.runtime ?? es.episode_run_time?.[0] ?? null,
   }
+
+  const texts = {}
+  const fellBack = []
+  for (const code of codes) {
+    const first = (read) => FALLBACK[code].map((c) => read(sheets[c])).find(Boolean)
+    const overview = first((d) => d.overview) ?? ''
+    const poster = first((d) => d.poster_path)
+    texts[code] = {
+      title: sheets[code].title ?? sheets[code].name,
+      overview,
+      posterUrl: poster ? `${IMAGE}${poster}` : null,
+    }
+    if (!sheets[code].overview && overview) fellBack.push(code)
+  }
+  return { base, texts, fellBack, spanishOverview: es.overview ?? '' }
 }
 
 async function build() {
@@ -79,23 +118,37 @@ async function build() {
   const all = [...curated, ...discovered]
 
   const fetched = []
-  // De 10 en 10, para no pasarse del límite de peticiones de TMDB
-  for (let i = 0; i < all.length; i += 10) {
-    const batch = all.slice(i, i + 10)
+  // De 5 en 5 (cada título son 3 peticiones), para no pasarse del límite de TMDB
+  for (let i = 0; i < all.length; i += 5) {
+    const batch = all.slice(i, i + 5)
     fetched.push(...(await Promise.all(batch.map(fetchTitle))))
   }
-  const titles = fetched.filter(
+  // El filtro sigue siendo el de siempre: sinopsis en español y duración mínima
+  const kept = fetched.filter(
     (t, i) =>
       i < curated.length ||
-      (t.overview && (t.runtime ?? 0) >= MIN_DISCOVERED_RUNTIME),
+      (t.spanishOverview && (t.base.runtime ?? 0) >= MIN_DISCOVERED_RUNTIME),
   )
-  const dropped = fetched.length - titles.length
-  await writeFile(CATALOG, JSON.stringify(titles, null, 2) + '\n')
+  const dropped = fetched.length - kept.length
+
+  await mkdir(CATALOG_DIR, { recursive: true })
+  const save = (name, data) =>
+    writeFile(new URL(`${name}.json`, CATALOG_DIR), JSON.stringify(data, null, 2) + '\n')
+  await save('base', kept.map((t) => t.base))
+  for (const code of Object.keys(LANGS)) {
+    await save(code, Object.fromEntries(kept.map((t) => [t.base.id, t.texts[code]])))
+  }
+
   console.log(
-    `catalog.json generado con ${titles.length} títulos ` +
-      `(${curated.length} manuales + ${titles.length - curated.length} descubiertos; ` +
+    `catalog/ generado con ${kept.length} títulos ` +
+      `(${curated.length} manuales + ${kept.length - curated.length} descubiertos; ` +
       `${dropped} descartados por duración o sin sinopsis).`,
   )
+  for (const code of Object.keys(LANGS)) {
+    const used = kept.filter((t) => t.fellBack.includes(code)).length
+    const empty = kept.filter((t) => !t.texts[code].overview).length
+    console.log(`  ${code}: ${used} sinopsis tomadas de otro idioma, ${empty} sin sinopsis`)
+  }
 }
 
 async function add(args) {

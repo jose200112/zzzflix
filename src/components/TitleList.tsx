@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import TitleCard from './TitleCard'
 import type { Title } from '../data/titles'
 import './TitleList.css'
@@ -28,6 +29,7 @@ function pageNumbers(current: number, total: number): (number | '…')[] {
 }
 
 function TitleList({ items, favoriteIds, onToggleFavorite }: TitleListProps) {
+  const { t } = useTranslation()
   // La búsqueda y la página viven en la URL: el botón Atrás y los enlaces
   // compartidos funcionan, y cada pestaña empieza desde cero.
   const [params, setParams] = useSearchParams()
@@ -68,18 +70,18 @@ function TitleList({ items, favoriteIds, onToggleFavorite }: TitleListProps) {
         <input
           type="search"
           className="list-search"
-          placeholder="Buscar por título o año…"
-          aria-label="Buscar títulos"
+          placeholder={t('list.searchPlaceholder')}
+          aria-label={t('list.searchLabel')}
           value={query}
           onChange={(e) => update({ q: e.target.value })}
         />
         <span className="list-count">
-          {filtered.length} {filtered.length === 1 ? 'título' : 'títulos'}
+          {t('list.count', { count: filtered.length })}
         </span>
       </div>
 
       {filtered.length === 0 ? (
-        <p>No hay resultados para «{query}».</p>
+        <p>{t('list.noResults', { query })}</p>
       ) : (
         <div className="title-grid">
           {visible.map((t) => (
@@ -94,9 +96,9 @@ function TitleList({ items, favoriteIds, onToggleFavorite }: TitleListProps) {
       )}
 
       {totalPages > 1 && (
-        <nav className="pagination" aria-label="Paginación">
+        <nav className="pagination" aria-label={t('list.pagination')}>
           <button disabled={page === 1} onClick={() => goTo(page - 1)}>
-            ← Anterior
+            {t('list.prev')}
           </button>
           {pageNumbers(page, totalPages).map((p, i) =>
             p === '…' ? (
@@ -115,7 +117,7 @@ function TitleList({ items, favoriteIds, onToggleFavorite }: TitleListProps) {
             ),
           )}
           <button disabled={page === totalPages} onClick={() => goTo(page + 1)}>
-            Siguiente →
+            {t('list.next')}
           </button>
         </nav>
       )}
