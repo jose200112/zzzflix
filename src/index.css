@@ -349,3 +349,32 @@ h2 {
   height: 14px;
   width: auto;
 }
+
+/* Selector de idioma */
+.lang-switch {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: 1rem;
+}
+
+.lang-switch button {
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  opacity: 0.65;
+  padding: 0.15rem 0.5rem;
+}
+
+.lang-switch button:hover {
+  opacity: 1;
+}
+
+.lang-switch button.active {
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 700;
+  opacity: 1;
+}

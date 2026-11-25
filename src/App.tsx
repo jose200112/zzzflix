@@ -10,6 +10,7 @@ import type { Rating } from './data/rating'
 import { loadCatalog } from './api/catalog'
 import { fetchRatings } from './api/comments'
 import HeroLogo from './components/HeroLogo'
+import { useTranslation } from 'react-i18next'
 
 const STORAGE_KEY = 'zzzflix:favorites'
 
@@ -24,6 +25,7 @@ function loadFavorites(): number[] {
 }
 
 function App() {
+  const { t } = useTranslation()
   const [favoriteIds, setFavoriteIds] = useState<number[]>(loadFavorites)
   const [catalog, setCatalog] = useState<Title[]>([])
   const [ratings, setRatings] = useState<Record<number, Rating>>({})
@@ -75,8 +77,8 @@ function App() {
       (b.runtime ?? 0) - (a.runtime ?? 0),
   )
 
-  if (loading) return <p>Cargando catálogo…</p>
-  if (error) return <p>No se pudo cargar el catálogo. Inténtalo más tarde.</p>
+  if (loading) return <p>{t('app.loading')}</p>
+  if (error) return <p>{t('app.loadError')}</p>
 
   return (
     <BrowserRouter>
@@ -98,7 +100,7 @@ function App() {
             path="/favoritos"
             element={
               favorites.length === 0 ? (
-                <p>Aún no tienes favoritos.</p>
+                <p>{t('app.noFavorites')}</p>
               ) : (
                 <TitleList
                   items={favorites}

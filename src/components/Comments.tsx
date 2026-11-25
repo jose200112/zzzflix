@@ -3,6 +3,8 @@ import type { FormEvent } from 'react'
 import { COMMENTS_ENABLED, SITE_KEY, fetchComments, postComment } from '../api/comments'
 import type { Comment } from '../api/comments'
 import './Comments.css'
+import { useTranslation } from 'react-i18next'
+import { useLocale } from '../i18n'
 
 const SCRIPT_SRC =
   'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
@@ -13,6 +15,7 @@ type TurnstileApi = {
     options: {
       sitekey: string
       theme: 'auto' | 'light' | 'dark'
+      language: string
       callback: (token: string) => void
       'expired-callback': () => void
       'error-callback': () => void
@@ -51,40 +54,17 @@ function loadTurnstile(): Promise<void> {
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u
 const URL_RE = /(https?:\/\/|www\.)/i
 
-const RATING_HINTS = [
-  '',
-  'Me mantuvo despierto',
-  'Algún bostezo',
-  'Cabeceé un poco',
-  'Dormí a ratos',
-  'Dormí como un bebé',
-]
-
-const ERRORS: Record<string, string> = {
-  invalid_nickname:
-    'El apodo debe tener entre 2 y 20 caracteres: letras, números, espacios, _ o -.',
-  invalid_rating: 'Elige cuánto te ha dormido, de 1 a 5.',
-  invalid_text:
-    'El comentario debe tener entre 1 y 500 caracteres, sin enlaces ni los símbolos < >.',
-  ip_limit: 'Has alcanzado el límite de comentarios de hoy. Vuelve mañana.',
-  daily_limit:
-    'Hoy ya se han enviado demasiados comentarios en total. Inténtalo mañana.',
-  captcha_failed:
-    'No hemos podido verificar que eres una persona. Inténtalo de nuevo.',
-  captcha_unavailable:
-    'La verificación no está disponible ahora mismo. Inténtalo en un rato.',
-  comments_disabled: 'Los comentarios están cerrados temporalmente.',
-  throttled: 'Demasiadas peticiones seguidas. Espera unos segundos.',
-  network: 'No se ha podido conectar. Revisa tu conexión.',
-}
-
-type Message = { kind: 'ok' | 'error'; text: string }
+type Message = { kind: 'ok' | 'error'; key: string }
 
 type CommentsProps = {
   titleId: number
 }
 
 function Comments({ titleId }: CommentsProps) {
+  const { t, i18n } = useTranslation()
+  const locale = useLocale()
+  // El widget de Turnstile se vuelve a dibujar en el idioma elegido
+  const lang = i18n.resolvedLanguage ?? 'en'
   const [comments, setComments] = useState<Comment[] | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [nickname, setNickname] = useState('')
@@ -123,6 +103,7 @@ function Comments({ titleId }: CommentsProps) {
         widgetId.current = window.turnstile.render(widgetRef.current, {
           sitekey: SITE_KEY ?? '',
           theme: 'dark',
+          language: lang,
           callback: (t) => setToken(t),
           'expired-callback': () => setToken(''),
           'error-callback': () => setToken(''),
@@ -130,7 +111,7 @@ function Comments({ titleId }: CommentsProps) {
       })
       .catch(() => {
         if (!cancelled) {
-          setMessage({ kind: 'error', text: ERRORS.captcha_unavailable })
+          setMessage({ kind: 'error', key: 'comments.errors.captcha_unavailable' })
         }
       })
     return () => {
@@ -139,8 +120,9 @@ function Comments({ titleId }: CommentsProps) {
         window.turnstile.remove(widgetId.current)
       }
       widgetId.current = undefined
+      setToken('')
     }
-  }, [])
+  }, [lang])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -148,11 +130,11 @@ function Comments({ titleId }: CommentsProps) {
     const body = text.trim()
 
     if (!NICK_RE.test(nick)) {
-      setMessage({ kind: 'error', text: ERRORS.invalid_nickname })
+      setMessage({ kind: 'error', key: 'comments.errors.invalid_nickname' })
       return
     }
     if (rating < 1 || rating > 5) {
-      setMessage({ kind: 'error', text: ERRORS.invalid_rating })
+      setMessage({ kind: 'error', key: 'comments.errors.invalid_rating' })
       return
     }
     if (
@@ -161,13 +143,13 @@ function Comments({ titleId }: CommentsProps) {
       /[<>]/.test(body) ||
       URL_RE.test(body)
     ) {
-      setMessage({ kind: 'error', text: ERRORS.invalid_text })
+      setMessage({ kind: 'error', key: 'comments.errors.invalid_text' })
       return
     }
     if (!token) {
       setMessage({
         kind: 'error',
-        text: 'Completa la verificación antes de enviar.',
+        key: 'comments.completeCaptcha',
       })
       return
     }
@@ -194,14 +176,13 @@ function Comments({ titleId }: CommentsProps) {
       setRating(0)
       setMessage({
         kind: 'ok',
-        text: '¡Gracias! Tu comentario y tu nota se publicarán cuando sean aprobados.',
+        key: 'comments.sent',
       })
     } else {
+      const key = `comments.errors.${result.error}`
       setMessage({
         kind: 'error',
-        text:
-          ERRORS[result.error] ??
-          'No se ha podido enviar el comentario. Inténtalo más tarde.',
+        key: i18n.exists(key) ? key : 'comments.errors.unknown',
       })
     }
   }
@@ -209,20 +190,20 @@ function Comments({ titleId }: CommentsProps) {
   if (!COMMENTS_ENABLED) {
     return (
       <div className="comments">
-        <h2>Comentarios</h2>
-        <p>Los comentarios no están disponibles ahora mismo.</p>
+        <h2>{t('comments.title')}</h2>
+        <p>{t('comments.unavailable')}</p>
       </div>
     )
   }
 
   return (
     <div className="comments">
-      <h2>Comentarios</h2>
+      <h2>{t('comments.title')}</h2>
 
       <form className="comment-form" onSubmit={handleSubmit}>
-        <h3>Deja tu comentario</h3>
+        <h3>{t('comments.formTitle')}</h3>
         <label>
-          Apodo
+          {t('comments.nickname')}
           <input
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
@@ -231,7 +212,7 @@ function Comments({ titleId }: CommentsProps) {
           />
         </label>
         <fieldset className="rating-field">
-          <legend>¿Cuánto te ha dormido?</legend>
+          <legend>{t('comments.ratingLegend')}</legend>
           <div className="rating-options">
             {[1, 2, 3, 4, 5].map((n) => (
               <label
@@ -251,12 +232,12 @@ function Comments({ titleId }: CommentsProps) {
           </div>
           <span className="rating-hint">
             {rating > 0
-              ? `${'💤'.repeat(rating)} ${RATING_HINTS[rating]}`
-              : '1 = nada, 5 = a dormir'}
+              ? `${'💤'.repeat(rating)} ${t(`comments.ratingHint_${rating}`)}`
+              : t('comments.ratingDefault')}
           </span>
         </fieldset>
         <label>
-          Comentario
+          {t('comments.commentLabel')}
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -266,23 +247,23 @@ function Comments({ titleId }: CommentsProps) {
         </label>
         <div ref={widgetRef} />
         <button type="submit" disabled={sending}>
-          {sending ? 'Enviando…' : 'Enviar comentario'}
+          {sending ? t('comments.sending') : t('comments.send')}
         </button>
         {message && (
           <p className={`form-message ${message.kind}`} role="status">
-            {message.text}
+            {t(message.key)}
           </p>
         )}
         <p className="form-note">
-          Los comentarios y las notas se revisan antes de publicarse.
+          {t('comments.note')}
         </p>
       </form>
 
-      <h3 className="comments-subtitle">Lo que dicen</h3>
-      {loadError && <p>No se han podido cargar los comentarios.</p>}
-      {!loadError && comments === null && <p>Cargando comentarios…</p>}
+      <h3 className="comments-subtitle">{t('comments.listTitle')}</h3>
+      {loadError && <p>{t('comments.loadError')}</p>}
+      {!loadError && comments === null && <p>{t('comments.loading')}</p>}
       {comments !== null && comments.length === 0 && (
-        <p>Aún no hay comentarios. ¡Sé el primero!</p>
+        <p>{t('comments.empty')}</p>
       )}
       {comments !== null && comments.length > 0 && (
         <ul className="comment-list">
@@ -291,11 +272,11 @@ function Comments({ titleId }: CommentsProps) {
               <div className="comment-meta">
                 <strong>{c.nickname}</strong>
                 {c.rating ? (
-                  <span aria-label={`Nota: ${c.rating} de 5`}>
+                  <span aria-label={t('comments.ratingAria', { rating: c.rating })}>
                     {'💤'.repeat(c.rating)}
                   </span>
                 ) : null}
-                <span>{new Date(c.createdAt).toLocaleDateString('es-ES')}</span>
+                <span>{new Date(c.createdAt).toLocaleDateString(locale)}</span>
               </div>
               {/* React escapa el texto: nunca se interpreta como HTML */}
               <p>{c.text}</p>

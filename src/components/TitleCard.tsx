@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import type { Title } from '../data/titles'
 import SleepRating from './SleepRating'
 
@@ -9,6 +10,7 @@ type TitleCardProps = {
 }
 
 function TitleCard({ item, isFavorite, onToggleFavorite }: TitleCardProps) {
+  const { t } = useTranslation()
   return (
     <article className="title-card">
       <Link to={`/titulo/${item.id}`} className="card-link">
@@ -16,25 +18,25 @@ function TitleCard({ item, isFavorite, onToggleFavorite }: TitleCardProps) {
           <img
             className="poster"
             src={item.posterUrl}
-            alt={`Póster de ${item.title}`}
+            alt={t('card.posterAlt', { title: item.title })}
             loading="lazy"
           />
         ) : (
-          <div className="poster poster-empty">Sin póster</div>
+          <div className="poster poster-empty">{t('card.noPoster')}</div>
         )}
         <h2>{item.title}</h2>
       </Link>
       <p className="year">
         {item.year}
-        {item.runtime ? ` · ${item.runtime} min` : ''}
+        {item.runtime ? ` · ${t('card.min', { count: item.runtime })}` : ''}
       </p>
       <SleepRating rating={item.rating} />
-      <p className="overview">{item.overview || 'Sin sinopsis disponible.'}</p>
+      <p className="overview">{item.overview || t('card.noOverview')}</p>
       <button
         className={`fav-btn ${isFavorite ? 'active' : ''}`}
         onClick={onToggleFavorite}
       >
-        {isFavorite ? '★ Favorito' : '☆ Añadir a favoritos'}
+        {isFavorite ? t('card.favorite') : t('card.addFavorite')}
       </button>
     </article>
   )

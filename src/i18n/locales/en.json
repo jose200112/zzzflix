@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "title": "ZZZFlix — Movies and series that will put you to sleep"
+  },
+  "nav": {
+    "home": "Home",
+    "movies": "Movies",
+    "series": "Series",
+    "sleepiest": "Sleepiest",
+    "favorites": "My favorites",
+    "language": "Language"
+  },
+  "app": {
+    "loading": "Loading catalog…",
+    "loadError": "The catalog could not be loaded. Please try again later.",
+    "noFavorites": "You don't have any favorites yet."
+  },
+  "list": {
+    "searchPlaceholder": "Search by title or year…",
+    "searchLabel": "Search titles",
+    "count_one": "{{count}} title",
+    "count_other": "{{count}} titles",
+    "noResults": "No results for “{{query}}”.",
+    "pagination": "Pagination",
+    "prev": "← Previous",
+    "next": "Next →"
+  },
+  "card": {
+    "posterAlt": "Poster of {{title}}",
+    "noPoster": "No poster",
+    "noOverview": "No synopsis available.",
+    "favorite": "★ Favorite",
+    "addFavorite": "☆ Add to favorites",
+    "min": "{{count}} min"
+  },
+  "detail": {
+    "notFound": "This title doesn't exist.",
+    "backHome": "← Back to home",
+    "back": "← Back",
+    "movie": "Movie",
+    "series": "Series",
+    "synopsis": "Synopsis"
+  },
+  "rating": {
+    "unrated": "Not rated yet",
+    "votes_one": "{{count}} vote",
+    "votes_other": "{{count}} votes",
+    "aria": "Sleepiness level: {{avg}} out of 5, {{votes}}"
+  },
+  "comments": {
+    "title": "Comments",
+    "unavailable": "Comments are not available right now.",
+    "formTitle": "Leave your comment",
+    "nickname": "Nickname",
+    "ratingLegend": "How sleepy did it make you?",
+    "ratingDefault": "1 = not at all, 5 = fast asleep",
+    "ratingHint_1": "It kept me awake",
+    "ratingHint_2": "A few yawns",
+    "ratingHint_3": "I nodded off a bit",
+    "ratingHint_4": "I slept on and off",
+    "ratingHint_5": "I slept like a baby",
+    "commentLabel": "Comment",
+    "send": "Send comment",
+    "sending": "Sending…",
+    "note": "Comments and ratings are reviewed before they are published.",
+    "listTitle": "What people say",
+    "loadError": "Comments could not be loaded.",
+    "loading": "Loading comments…",
+    "empty": "No comments yet. Be the first!",
+    "ratingAria": "Rating: {{rating}} out of 5",
+    "sent": "Thank you! Your comment and rating will be published once approved.",
+    "completeCaptcha": "Please complete the verification before sending.",
+    "errors": {
+      "invalid_nickname": "The nickname must be 2 to 20 characters long: letters, numbers, spaces, _ or -.",
+      "invalid_rating": "Choose how sleepy it made you, from 1 to 5.",
+      "invalid_text": "The comment must be 1 to 500 characters long, with no links and no < > symbols.",
+      "ip_limit": "You have reached today's comment limit. Come back tomorrow.",
+      "daily_limit": "Too many comments have already been sent today. Please try again tomorrow.",
+      "captcha_failed": "We couldn't verify that you are a person. Please try again.",
+      "captcha_unavailable": "Verification is not available right now. Please try again in a while.",
+      "comments_disabled": "Comments are temporarily closed.",
+      "throttled": "Too many requests in a row. Wait a few seconds.",
+      "network": "Could not connect. Check your connection.",
+      "unknown": "The comment could not be sent. Please try again later."
+    }
+  }
+}
