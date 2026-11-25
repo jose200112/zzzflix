@@ -22,13 +22,15 @@ variable "ip_comment_cap" {
   default     = 3
 }
 
-# Clave secreta de Turnstile. Sin valor por defecto: se pasa por entorno
-# (export TF_VAR_turnstile_secret=...) y nunca se escribe en el repositorio.
-variable "turnstile_secret" {
-  description = "Clave secreta del widget de Cloudflare Turnstile"
-  type        = string
-  sensitive   = true
+# La clave secreta de Turnstile vive en SSM Parameter Store (SecureString).
+# Se crea a mano con la CLI para que su valor no pase nunca por Terraform ni
+# por su estado; aquí solo se referencia por nombre.
+locals {
+  turnstile_param_name = "/${var.project_name}/turnstile-secret"
 }
+
+data "aws_region" "comments" {}
+data "aws_caller_identity" "comments" {}
 
 resource "aws_dynamodb_table" "comments" {
   name         = "${var.project_name}-comments"
@@ -105,6 +107,20 @@ resource "aws_iam_role_policy" "comments_db" {
   policy = data.aws_iam_policy_document.comments_db.json
 }
 
+# Permiso mínimo: leer solo el parámetro de la clave de Turnstile
+data "aws_iam_policy_document" "comments_ssm" {
+  statement {
+    actions   = ["ssm:GetParameter"]
+    resources = ["arn:aws:ssm:${data.aws_region.comments.region}:${data.aws_caller_identity.comments.account_id}:parameter${local.turnstile_param_name}"]
+  }
+}
+
+resource "aws_iam_role_policy" "comments_ssm" {
+  name   = "ssm-turnstile"
+  role   = aws_iam_role.comments.id
+  policy = data.aws_iam_policy_document.comments_ssm.json
+}
+
 resource "aws_cloudwatch_log_group" "comments" {
   name              = "/aws/lambda/${var.project_name}-comments"
   retention_in_days = 14
@@ -123,11 +139,11 @@ resource "aws_lambda_function" "comments" {
 
   environment {
     variables = {
-      TABLE_NAME       = aws_dynamodb_table.comments.name
-      COMMENTS_ENABLED = tostring(var.comments_enabled)
-      DAILY_CAP        = tostring(var.daily_comment_cap)
-      IP_CAP           = tostring(var.ip_comment_cap)
-      TURNSTILE_SECRET = var.turnstile_secret
+      TABLE_NAME             = aws_dynamodb_table.comments.name
+      COMMENTS_ENABLED       = tostring(var.comments_enabled)
+      DAILY_CAP              = tostring(var.daily_comment_cap)
+      IP_CAP                 = tostring(var.ip_comment_cap)
+      TURNSTILE_SECRET_PARAM = local.turnstile_param_name
     }
   }
 
