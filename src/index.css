@@ -337,3 +337,15 @@ h2 {
   line-height: 1.2;
   margin: 0 0 8px;
 }
+/* Logo de TMDB sobre la frase de atribución */
+.footer .footer-tmdb {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  text-decoration: none;
+}
+
+.footer .footer-tmdb img {
+  display: block;
+  height: 14px;
+  width: auto;
+}
