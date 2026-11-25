@@ -378,3 +378,15 @@ h2 {
   font-weight: 700;
   opacity: 1;
 }
+
+/* Títulos largos: máximo 2 líneas y hueco reservado, para que año, estrellas
+   y sinopsis queden alineados entre las tarjetas de una misma fila */
+.title-grid .title-card h2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.25;
+  min-height: 2.5em;
+}

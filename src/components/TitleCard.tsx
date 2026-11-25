@@ -24,7 +24,7 @@ function TitleCard({ item, isFavorite, onToggleFavorite }: TitleCardProps) {
         ) : (
           <div className="poster poster-empty">{t('card.noPoster')}</div>
         )}
-        <h2>{item.title}</h2>
+        <h2 title={item.title}>{item.title}</h2>
       </Link>
       <p className="year">
         {item.year}
