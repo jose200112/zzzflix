@@ -133,6 +133,13 @@ aws cloudfront create-invalidation \
   --distribution-id "$(terraform -chdir=infra output -raw distribution_id)" --paths "/*"
 ```
 
+## CI/CD and security
+
+- **CI on every pull request:** the app is built and the Terraform code is scanned with Checkov. Both checks are required to merge into `main`.
+- **Deploy:** merging into `main` publishes the site to AWS (S3 + CloudFront) from GitHub Actions, authenticating with OIDC, so there are no long-lived AWS keys in the repository.
+- **Branch protection:** `main` is protected by a ruleset (pull request and passing checks required, no force pushes, no deletion).
+- **Code and dependency scanning:** CodeQL, Dependabot (npm, GitHub Actions and Terraform), secret scanning and push protection are enabled.
+
 ## Known limitations
 
 - The catalog is a snapshot: new titles or refreshed TMDB data require running `npm run catalog` and committing the result.
