@@ -113,7 +113,7 @@ resource "aws_cloudwatch_log_group" "comments" {
 resource "aws_lambda_function" "comments" {
   function_name = "${var.project_name}-comments"
   role          = aws_iam_role.comments.arn
-  runtime       = "nodejs22.x"
+  runtime       = "nodejs24.x"
   handler       = "index.handler"
   timeout       = 5
   memory_size   = 128
