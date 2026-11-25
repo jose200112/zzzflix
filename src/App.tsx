@@ -10,6 +10,7 @@ import type { Rating } from './data/rating'
 import { loadCatalog } from './api/catalog'
 import { fetchRatings } from './api/comments'
 import HeroLogo from './components/HeroLogo'
+import type { Language } from './i18n'
 import { useTranslation } from 'react-i18next'
 
 const STORAGE_KEY = 'zzzflix:favorites'
@@ -25,7 +26,9 @@ function loadFavorites(): number[] {
 }
 
 function App() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  // El catálogo se vuelve a cargar al cambiar de idioma
+  const lang = (i18n.resolvedLanguage ?? 'en') as Language
   const [favoriteIds, setFavoriteIds] = useState<number[]>(loadFavorites)
   const [catalog, setCatalog] = useState<Title[]>([])
   const [ratings, setRatings] = useState<Record<number, Rating>>({})
@@ -39,11 +42,23 @@ function App() {
   }, [favoriteIds])
 
   useEffect(() => {
-    loadCatalog()
-      .then(setCatalog)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
-  }, [])
+    let cancelled = false
+    loadCatalog(lang)
+      .then((list) => {
+        if (cancelled) return
+        setCatalog(list)
+        setError(false)
+      })
+      .catch(() => {
+        if (!cancelled) setError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [lang])
 
   // Las notas vienen de la API de comentarios. Si falla, el catálogo sigue
   // funcionando y todo aparece "Sin valorar".
