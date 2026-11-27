@@ -4,10 +4,12 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { createHmac, randomUUID } from "node:crypto";
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
+import { BedrockRuntimeClient, ApplyGuardrailCommand } from "@aws-sdk/client-bedrock-runtime";
 
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const TABLE = process.env.TABLE_NAME;
@@ -17,6 +19,14 @@ const ENABLED = process.env.COMMENTS_ENABLED === "true"; // interruptor de emerg
 const DAILY_CAP = Number(process.env.DAILY_CAP ?? 50); // comentarios al día en total
 const IP_CAP = Number(process.env.IP_CAP ?? 3); // comentarios al día por IP
 const TURNSTILE_PARAM = process.env.TURNSTILE_SECRET_PARAM ?? ""; // nombre del parámetro en SSM
+
+// Filtro automático (Amazon Bedrock Guardrails)
+const GUARDRAIL_ID = process.env.GUARDRAIL_ID ?? "";
+const GUARDRAIL_VERSION = process.env.GUARDRAIL_VERSION ?? "DRAFT";
+// Tope propio de ejecuciones de Guardrails al día. Es independiente de DAILY_CAP:
+// aunque falle otra capa, la IA nunca se ejecuta más veces que esto. Con 0 el
+// filtro queda apagado y todos los comentarios van a revisión manual.
+const GUARDRAIL_CAP = Number(process.env.GUARDRAIL_CAP ?? 50);
 
 // La clave secreta de Turnstile vive en SSM Parameter Store (SecureString).
 // Se lee la primera vez que hace falta y se guarda en memoria mientras la
@@ -60,7 +70,9 @@ async function ipDigest(message) {
 
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u;
 const TITLE_RE = /^\d{1,10}$/;
-const URL_RE = /(https?:\/\/|www\.)/i;
+// Enlaces: con esquema (http://), con www. o direcciones tipo ejemplo.com
+const URL_RE =
+  /(https?:\/\/|www\.)|\b[a-z0-9-]+\.(com|net|org|io|xyz|info|biz|ru|cn|tk|ly|app|dev|link|site|online|shop|top|club|store)\b/i;
 const MAX_BODY = 2000;
 const MAX_TEXT = 500;
 
@@ -135,6 +147,52 @@ async function verifyTurnstile(token, ip) {
   }
 }
 
+// Resumen de por qué Guardrails bloqueó (solo tipos, nunca el texto), para
+// poder ajustar los filtros mirando los registros.
+function describeIntervention(out) {
+  try {
+    const found = new Set();
+    for (const a of out.assessments ?? []) {
+      for (const f of a.contentPolicy?.filters ?? []) found.add(f.type);
+      if (a.wordPolicy?.customWords?.length || a.wordPolicy?.managedWordLists?.length) {
+        found.add("WORD");
+      }
+      for (const e of a.sensitiveInformationPolicy?.piiEntities ?? []) found.add(e.type);
+      if (a.sensitiveInformationPolicy?.regexes?.length) found.add("REGEX");
+    }
+    return [...found].join(",");
+  } catch {
+    return "";
+  }
+}
+
+// Sin reintentos: cada llamada cuenta una ejecución y el tope cuenta intentos.
+const bedrock = new BedrockRuntimeClient({ maxAttempts: 1 });
+
+// Pasa el comentario por Guardrails. Devuelve "ok", "blocked" o "error".
+// Apodo y texto van en un solo bloque (hasta 1000 caracteres = una unidad de
+// texto = una ejecución facturable). La línea "guardrail_call" alimenta la
+// métrica y la alarma de uso; nunca se registra el texto del comentario.
+async function checkWithGuardrail(nickname, text) {
+  try {
+    const out = await bedrock.send(
+      new ApplyGuardrailCommand({
+        guardrailIdentifier: GUARDRAIL_ID,
+        guardrailVersion: GUARDRAIL_VERSION,
+        source: "INPUT",
+        content: [{ text: { text: `${nickname}\n${text}` } }],
+      }),
+      { abortSignal: AbortSignal.timeout(4000) }
+    );
+    const verdict = out.action === "GUARDRAIL_INTERVENED" ? "blocked" : "ok";
+    console.log("guardrail_call", verdict, describeIntervention(out));
+    return verdict;
+  } catch (err) {
+    console.log("guardrail_call", "error", err.name);
+    return "error";
+  }
+}
+
 // GET /comments?titleId=1398 -> comentarios aprobados + media de notas
 async function listComments(event) {
   const titleId = event.queryStringParameters?.titleId ?? "";
@@ -186,7 +244,9 @@ async function listRatings() {
   return json(200, { ratings }, { "cache-control": "public, max-age=60" });
 }
 
-// POST /comments {titleId, nickname, text, rating, turnstileToken} -> "pending"
+// POST /comments {titleId, nickname, text, rating, turnstileToken}
+//   -> 201 "published" (Guardrails OK) | 202 "pending" (Guardrails no disponible)
+//   -> 400 "content_blocked" (Guardrails bloquea) | 429 (topes diarios)
 async function createComment(event) {
   if (!ENABLED) return json(503, { error: "comments_disabled" });
 
@@ -263,23 +323,60 @@ async function createComment(event) {
     return json(429, { error: "daily_limit" });
   }
 
-  const createdAt = new Date().toISOString();
-  await db.send(
-    new PutCommand({
-      TableName: TABLE,
-      Item: {
-        titleId,
-        sk: `${createdAt}#${randomUUID()}`,
-        nickname,
-        text,
-        rating,
-        ipId,
-        status: "pending",
-        createdAt,
-      },
-    })
-  );
+  // Filtro automático. Es lo último antes de guardar. Su contador sube ANTES
+  // de llamar y cuenta toda ejecución (ok, bloqueo o error). Al llegar al tope
+  // se rechaza sin llamar a la IA. Si el filtro está apagado (tope 0) o falla,
+  // el comentario queda pendiente para revisión manual.
+  let verdict = "unchecked";
+  if (GUARDRAIL_CAP > 0 && GUARDRAIL_ID) {
+    if (!(await bump(`guardrail#${day}`, GUARDRAIL_CAP))) {
+      console.warn("guardrail cap reached");
+      return json(429, { error: "daily_limit" });
+    }
+    verdict = await checkWithGuardrail(nickname, text);
+    if (verdict === "blocked") return json(400, { error: "content_blocked" });
+  }
 
+  const createdAt = new Date().toISOString();
+  const item = {
+    titleId,
+    sk: `${createdAt}#${randomUUID()}`,
+    nickname,
+    text,
+    rating,
+    ipId,
+    createdAt,
+  };
+
+  if (verdict === "ok") {
+    // Se publica y su nota entra en la media en una sola transacción
+    await db.send(
+      new TransactWriteCommand({
+        TransactItems: [
+          {
+            Put: {
+              TableName: TABLE,
+              Item: { ...item, status: "approved", moderation: "guardrails" },
+            },
+          },
+          {
+            Update: {
+              TableName: TABLE,
+              Key: { titleId: "#ratings", sk: titleId },
+              UpdateExpression: "ADD #sum :r, #count :one",
+              ExpressionAttributeNames: { "#sum": "sum", "#count": "count" },
+              ExpressionAttributeValues: { ":r": rating, ":one": 1 },
+            },
+          },
+        ],
+      })
+    );
+    return json(201, { status: "published" });
+  }
+
+  await db.send(
+    new PutCommand({ TableName: TABLE, Item: { ...item, status: "pending" } })
+  );
   return json(202, { status: "pending" });
 }
 
