@@ -72,9 +72,10 @@ def show(items, title):
     for n, i in enumerate(items, 1):
         stars = f"★{int(i['rating'])}" if "rating" in i else "sin nota"
         ban = "" if i.get("ipId") else " [sin ipId: no baneable]"
+        auto = " [auto]" if i.get("moderation") == "guardrails" else ""
         print(
             f"{n:>3}) película {i['titleId']} · {i['createdAt'][:16]} · "
-            f"{clean(i['nickname'])} · {stars}{ban}"
+            f"{clean(i['nickname'])} · {stars}{ban}{auto}"
         )
         print(f"     {clean(i['text'])}")
 
@@ -88,10 +89,10 @@ def approve(i):
             "Update": {
                 "TableName": TABLE,
                 "Key": {"titleId": i["titleId"], "sk": i["sk"]},
-                "UpdateExpression": "SET #s = :a",
+                "UpdateExpression": "SET #s = :a, #m = :m",
                 "ConditionExpression": "#s = :p",
-                "ExpressionAttributeNames": {"#s": "status"},
-                "ExpressionAttributeValues": {":a": "approved", ":p": "pending"},
+                "ExpressionAttributeNames": {"#s": "status", "#m": "moderation"},
+                "ExpressionAttributeValues": {":a": "approved", ":p": "pending", ":m": "manual"},
             }
         }
     ]
@@ -212,6 +213,22 @@ def switch_open():
     table.delete_item(Key=SWITCH_KEY)
 
 
+# --- Cupo diario --------------------------------------------------
+
+
+def usage():
+    """Contadores de hoy (día UTC). Los topes están en Terraform."""
+    from datetime import datetime, timezone
+
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for label, sk in (
+        ("Comentarios que han llegado al filtro (tope: daily_comment_cap)", f"global#{day}"),
+        ("Ejecuciones de Guardrails (tope: guardrail_daily_cap)", f"guardrail#{day}"),
+    ):
+        item = table.get_item(Key={"titleId": "#limits", "sk": sk}).get("Item")
+        print(f"  {label}: {int(item['hits']) if item else 0}")
+
+
 # --- Interfaz -----------------------------------------------------
 
 HELP = """
@@ -220,12 +237,13 @@ Comandos (los números son los de la lista que ves):
   r 4         rechazar (borrar) un pendiente
   b 5         banear al autor del comentario 5 y borrar sus pendientes
   p           ver pendientes
-  ok          ver aprobados
+  ok          ver aprobados ([auto] = publicado solo por el filtro de IA)
   x 2         borrar un aprobado (le resta su nota a la media)
   banip IP    banear una IP (por ejemplo la que ves en los logs de la API)
   bans        ver baneos
   unban 1     quitar un baneo (de la lista 'bans')
   estado      ver si los comentarios están abiertos o cerrados
+  cupo        ver cuánto cupo diario se ha gastado hoy (comentarios e IA)
   cerrar      cerrar los comentarios nuevos (interruptor de emergencia)
   abrir       reabrirlos (por ejemplo, tras una alarma)
   h           ayuda
@@ -267,6 +285,8 @@ def main():
                 print(HELP)
             elif cmd == "estado":
                 switch_status()
+            elif cmd == "cupo":
+                usage()
             elif cmd == "cerrar":
                 switch_close()
                 print("  Comentarios CERRADOS.")

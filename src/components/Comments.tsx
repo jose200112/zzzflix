@@ -52,7 +52,8 @@ function loadTurnstile(): Promise<void> {
 // Mismas reglas que la Lambda; aquí solo sirven para avisar antes.
 // La validación que protege de verdad es la del servidor.
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u
-const URL_RE = /(https?:\/\/|www\.)/i
+const URL_RE =
+  /(https?:\/\/|www\.)|\b[a-z0-9-]+\.(com|net|org|io|xyz|info|biz|ru|cn|tk|ly|app|dev|link|site|online|shop|top|club|store)\b/i
 
 type Message = { kind: 'ok' | 'error'; key: string }
 

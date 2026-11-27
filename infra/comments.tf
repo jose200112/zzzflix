@@ -136,7 +136,7 @@ resource "aws_lambda_function" "comments" {
   role          = aws_iam_role.comments.arn
   runtime       = "nodejs24.x"
   handler       = "index.handler"
-  timeout       = 5
+  timeout       = 10 # Turnstile (hasta 2,5 s) + Guardrails (hasta 4 s)
   memory_size   = 128
 
   filename         = data.archive_file.comments.output_path
@@ -150,6 +150,9 @@ resource "aws_lambda_function" "comments" {
       IP_CAP                 = tostring(var.ip_comment_cap)
       TURNSTILE_SECRET_PARAM = local.turnstile_param_name
       IP_SALT_PARAM          = local.ip_salt_param_name
+      GUARDRAIL_ID           = aws_bedrock_guardrail.comments.guardrail_id
+      GUARDRAIL_VERSION      = local.guardrail_version
+      GUARDRAIL_CAP          = tostring(var.guardrail_daily_cap)
     }
   }
 
