@@ -185,6 +185,33 @@ def list_bans():
     return sorted(out["Items"], key=lambda i: i["bannedAt"])
 
 
+# --- Interruptor de emergencia de los comentarios -----------------
+
+SWITCH_KEY = {"titleId": "#flags", "sk": "comments"}
+
+
+def switch_status():
+    item = table.get_item(Key=SWITCH_KEY).get("Item")
+    if item and item.get("disabled"):
+        print(
+            f"  CERRADO desde {clean(item.get('at', '?'))} "
+            f"(motivo: {clean(item.get('reason', '?'))}). Reábrelo con 'abrir'."
+        )
+    else:
+        print("  Abierto: la Lambda acepta comentarios.")
+        print("  (Si no los acepta, mira también comments_enabled en Terraform.)")
+
+
+def switch_close():
+    table.put_item(
+        Item={**SWITCH_KEY, "disabled": True, "reason": "manual", "at": _now()}
+    )
+
+
+def switch_open():
+    table.delete_item(Key=SWITCH_KEY)
+
+
 # --- Interfaz -----------------------------------------------------
 
 HELP = """
@@ -198,6 +225,9 @@ Comandos (los números son los de la lista que ves):
   banip IP    banear una IP (por ejemplo la que ves en los logs de la API)
   bans        ver baneos
   unban 1     quitar un baneo (de la lista 'bans')
+  estado      ver si los comentarios están abiertos o cerrados
+  cerrar      cerrar los comentarios nuevos (interruptor de emergencia)
+  abrir       reabrirlos (por ejemplo, tras una alarma)
   h           ayuda
   q           salir
 """
@@ -235,6 +265,14 @@ def main():
                 return
             elif cmd == "h":
                 print(HELP)
+            elif cmd == "estado":
+                switch_status()
+            elif cmd == "cerrar":
+                switch_close()
+                print("  Comentarios CERRADOS.")
+            elif cmd == "abrir":
+                switch_open()
+                print("  Comentarios ABIERTOS.")
             elif cmd == "p":
                 mode, items = "pending", fetch("pending")
                 show(items, "Pendientes")

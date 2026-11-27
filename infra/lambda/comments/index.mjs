@@ -70,6 +70,8 @@ const MAX_TEXT = 500;
 //   "#ratings" una fila por película con { sum, count } de notas aprobadas
 //              (la actualiza el script de moderación al aprobar)
 //   "#bans"    una fila por IP baneada (la gestiona el script de moderación)
+//   "#flags"   interruptor de emergencia: la Lambda "killswitch" cierra los
+//              comentarios cuando salta una alarma y moderate.py los reabre
 
 const json = (statusCode, body, headers = {}) => ({
   statusCode,
@@ -187,6 +189,15 @@ async function listRatings() {
 // POST /comments {titleId, nickname, text, rating, turnstileToken} -> "pending"
 async function createComment(event) {
   if (!ENABLED) return json(503, { error: "comments_disabled" });
+
+  // Interruptor automático (lo enciende la alarma de picos de POST). Va el
+  // primero: con los comentarios cerrados no se gasta ni Turnstile ni cupo.
+  const flag = await db.send(
+    new GetCommand({ TableName: TABLE, Key: { titleId: "#flags", sk: "comments" } })
+  );
+  if (flag.Item?.disabled === true) {
+    return json(503, { error: "comments_disabled" });
+  }
 
   if ((event.body ?? "").length > MAX_BODY) {
     return json(413, { error: "too_large" });
