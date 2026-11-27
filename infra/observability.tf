@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------
 # Observabilidad y protección automática de los comentarios
 #   - Dashboard de CloudWatch
-#   - Alarma de errores 5xx de la API
+#   - Alarma de errores reales de la API (500/502/504; los 503 de "cerrado" no cuentan)
 #   - Kill switch automático: si salta la alarma de picos de POST, una Lambda
 #     enciende un interruptor en DynamoDB ("#flags") y la Lambda de comentarios
 #     deja de aceptar comentarios nuevos. Leer sigue funcionando. Se reabre a
@@ -122,13 +122,28 @@ resource "aws_cloudwatch_log_metric_filter" "post_attempts" {
   }
 }
 
+# Errores reales del servidor (500/502/504). Se excluye el 503: es la respuesta
+# deliberada "comments_disabled" cuando los comentarios están cerrados, y no es
+# ningún fallo.
+resource "aws_cloudwatch_log_metric_filter" "server_errors" {
+  name           = "${var.project_name}-server-errors"
+  log_group_name = aws_cloudwatch_log_group.comments_api.name
+  pattern        = "{ ($.status = \"500\") || ($.status = \"502\") || ($.status = \"504\") }"
+
+  metric_transformation {
+    name      = "ServerErrors"
+    namespace = local.metrics_namespace
+    value     = "1"
+  }
+}
+
 # --- Alarmas nuevas -----------------------------------------------
 
 resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   alarm_name          = "${var.project_name}-api-5xx"
-  alarm_description   = "La API devuelve errores 5xx (por ejemplo, la Lambda no puede leer SSM o DynamoDB)"
-  namespace           = "AWS/ApiGateway"
-  metric_name         = "5xx"
+  alarm_description   = "La API devuelve errores reales del servidor 500/502/504 (por ejemplo, la Lambda no puede leer SSM o DynamoDB). Los 503 de comentarios cerrados no cuentan"
+  namespace           = local.metrics_namespace
+  metric_name         = "ServerErrors"
   statistic           = "Sum"
   period              = 300
   evaluation_periods  = 1
@@ -138,10 +153,7 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   alarm_actions       = [aws_sns_topic.alerts.arn]
   ok_actions          = [aws_sns_topic.alerts.arn]
 
-  dimensions = {
-    ApiId = aws_apigatewayv2_api.comments.id
-    Stage = aws_apigatewayv2_stage.default.name
-  }
+  depends_on = [aws_cloudwatch_log_metric_filter.server_errors]
 }
 
 # GRAVE: demasiados intentos de comentar en poco tiempo. Avisa por correo y
@@ -242,7 +254,8 @@ resource "aws_cloudwatch_dashboard" "main" {
           metrics = [
             ["AWS/ApiGateway", "Count", "ApiId", aws_apigatewayv2_api.comments.id, "Stage", aws_apigatewayv2_stage.default.name],
             ["AWS/ApiGateway", "4xx", "ApiId", aws_apigatewayv2_api.comments.id, "Stage", aws_apigatewayv2_stage.default.name],
-            ["AWS/ApiGateway", "5xx", "ApiId", aws_apigatewayv2_api.comments.id, "Stage", aws_apigatewayv2_stage.default.name],
+            ["AWS/ApiGateway", "5xx", "ApiId", aws_apigatewayv2_api.comments.id, "Stage", aws_apigatewayv2_stage.default.name, { label = "5xx (incluye los 503 de comentarios cerrados)" }],
+            [local.metrics_namespace, "ServerErrors", { label = "errores reales (500/502/504)" }],
           ]
         }
       },
