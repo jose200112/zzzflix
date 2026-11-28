@@ -1,24 +1,26 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
-  DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   QueryCommand,
   TransactWriteCommand,
-  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { createHmac, randomUUID } from "node:crypto";
-import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
+import { randomUUID } from "node:crypto";
 import { BedrockRuntimeClient, ApplyGuardrailCommand } from "@aws-sdk/client-bedrock-runtime";
-
-const db = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const TABLE = process.env.TABLE_NAME;
+import {
+  TABLE,
+  TITLE_RE,
+  bump,
+  db,
+  ipDigest,
+  isClosed,
+  json,
+  parseBody,
+  screenClient,
+} from "../shared/common.mjs";
 
 // Configuración que viene de Terraform
-const ENABLED = process.env.COMMENTS_ENABLED === "true"; // interruptor de emergencia
 const DAILY_CAP = Number(process.env.DAILY_CAP ?? 50); // comentarios al día en total
 const IP_CAP = Number(process.env.IP_CAP ?? 3); // comentarios al día por IP
-const TURNSTILE_PARAM = process.env.TURNSTILE_SECRET_PARAM ?? ""; // nombre del parámetro en SSM
 
 // Filtro automático (Amazon Bedrock Guardrails)
 const GUARDRAIL_ID = process.env.GUARDRAIL_ID ?? "";
@@ -28,124 +30,17 @@ const GUARDRAIL_VERSION = process.env.GUARDRAIL_VERSION ?? "DRAFT";
 // filtro queda apagado y todos los comentarios van a revisión manual.
 const GUARDRAIL_CAP = Number(process.env.GUARDRAIL_CAP ?? 50);
 
-// La clave secreta de Turnstile vive en SSM Parameter Store (SecureString).
-// Se lee la primera vez que hace falta y se guarda en memoria mientras la
-// Lambda siga caliente. Si la lectura falla no se cachea nada y se reintenta.
-const ssm = new SSMClient({});
-let turnstileSecret = null;
-async function getTurnstileSecret() {
-  if (turnstileSecret === null) {
-    const out = await ssm.send(
-      new GetParameterCommand({ Name: TURNSTILE_PARAM, WithDecryption: true })
-    );
-    turnstileSecret = out.Parameter?.Value ?? "";
-  }
-  return turnstileSecret;
-}
-
-// Sal de los hashes de IP. Vive en SSM (se crea a mano con la CLI) y se cachea
-// en memoria. Si falta, la función falla: nunca se cae a un hash sin sal.
-const IP_SALT_PARAM = process.env.IP_SALT_PARAM;
-let ipSalt = null;
-async function getIpSalt() {
-  if (ipSalt === null) {
-    const out = await ssm.send(
-      new GetParameterCommand({ Name: IP_SALT_PARAM, WithDecryption: true })
-    );
-    const value = out.Parameter?.Value ?? "";
-    if (!value) throw new Error("ip salt missing");
-    ipSalt = value;
-  }
-  return ipSalt;
-}
-
-// HMAC-SHA256 con la sal, recortado a 32 hex. Sin la sal no se puede recuperar
-// la IP probando las ~4.300 millones de direcciones IPv4.
-async function ipDigest(message) {
-  return createHmac("sha256", await getIpSalt())
-    .update(message)
-    .digest("hex")
-    .slice(0, 32);
-}
-
 const NICK_RE = /^[\p{L}\p{N} _-]{2,20}$/u;
-const TITLE_RE = /^\d{1,10}$/;
 // Enlaces: con esquema (http://), con www. o direcciones tipo ejemplo.com
 const URL_RE =
   /(https?:\/\/|www\.)|\b[a-z0-9-]+\.(com|net|org|io|xyz|info|biz|ru|cn|tk|ly|app|dev|link|site|online|shop|top|club|store)\b/i;
-const MAX_BODY = 2000;
 const MAX_TEXT = 500;
-
-// Claves especiales de la tabla (la consulta pública solo acepta ids numéricos,
-// así que nunca puede leerlas):
-//   "#limits"  contadores diarios
-//   "#ratings" una fila por película con { sum, count } de notas aprobadas
-//              (la actualiza el script de moderación al aprobar)
-//   "#bans"    una fila por IP baneada (la gestiona el script de moderación)
-//   "#flags"   interruptor de emergencia: la Lambda "killswitch" cierra los
-//              comentarios cuando salta una alarma y moderate.py los reabre
-
-const json = (statusCode, body, headers = {}) => ({
-  statusCode,
-  headers: { "content-type": "application/json", ...headers },
-  body: JSON.stringify(body),
-});
 
 // De { sum, count } a { count, average } (average es null si no hay notas)
 const stats = (item) =>
   item && item.count > 0
     ? { count: item.count, average: Math.round((item.sum / item.count) * 10) / 10 }
     : { count: 0, average: null };
-
-// Suma 1 a un contador diario, pero solo si no ha llegado al tope.
-// La condición se evalúa dentro de DynamoDB de forma atómica, así que
-// dos peticiones simultáneas no pueden colarse por encima del límite.
-// Los contadores caducan solos por TTL.
-async function bump(sk, cap) {
-  const expiresAt = Math.floor(Date.now() / 1000) + 2 * 86400;
-  try {
-    await db.send(
-      new UpdateCommand({
-        TableName: TABLE,
-        Key: { titleId: "#limits", sk },
-        UpdateExpression: "SET expiresAt = :exp ADD hits :one",
-        ConditionExpression: "attribute_not_exists(hits) OR hits < :cap",
-        ExpressionAttributeValues: { ":one": 1, ":cap": cap, ":exp": expiresAt },
-      })
-    );
-    return true;
-  } catch (err) {
-    if (err.name === "ConditionalCheckFailedException") return false;
-    throw err;
-  }
-}
-
-// Verifica el token del CAPTCHA con Cloudflare. Devuelve "ok", "invalid"
-// o "unavailable" (si Cloudflare no responde: se cierra por seguridad).
-async function verifyTurnstile(token, ip) {
-  if (typeof token !== "string" || token.length < 1 || token.length > 2048) {
-    return "invalid";
-  }
-  try {
-    const res = await fetch(
-      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          secret: await getTurnstileSecret(),
-          response: token,
-          remoteip: ip,
-        }),
-        signal: AbortSignal.timeout(2500),
-      }
-    );
-    const out = await res.json();
-    return out.success === true ? "ok" : "invalid";
-  } catch {
-    return "unavailable";
-  }
-}
 
 // Resumen de por qué Guardrails bloqueó (solo tipos, nunca el texto), para
 // poder ajustar los filtros mirando los registros.
@@ -217,9 +112,11 @@ async function listComments(event) {
     ),
   ]);
 
-  // Solo se exponen estos campos: nunca el hash de la IP ni el estado
+  // Solo se exponen estos campos: nunca el hash de la IP ni el estado.
+  // "id" es la clave de orden del comentario: el botón de reportar la devuelve.
   const comments = (out.Items ?? []).map(
-    ({ nickname, text, rating, createdAt }) => ({
+    ({ sk, nickname, text, rating, createdAt }) => ({
+      id: sk,
       nickname,
       text,
       rating,
@@ -248,27 +145,12 @@ async function listRatings() {
 //   -> 201 "published" (Guardrails OK) | 202 "pending" (Guardrails no disponible)
 //   -> 400 "content_blocked" (Guardrails bloquea) | 429 (topes diarios)
 async function createComment(event) {
-  if (!ENABLED) return json(503, { error: "comments_disabled" });
+  // Va el primero: con los comentarios cerrados no se gasta ni Turnstile ni cupo
+  if (await isClosed()) return json(503, { error: "comments_disabled" });
 
-  // Interruptor automático (lo enciende la alarma de picos de POST). Va el
-  // primero: con los comentarios cerrados no se gasta ni Turnstile ni cupo.
-  const flag = await db.send(
-    new GetCommand({ TableName: TABLE, Key: { titleId: "#flags", sk: "comments" } })
-  );
-  if (flag.Item?.disabled === true) {
-    return json(503, { error: "comments_disabled" });
-  }
-
-  if ((event.body ?? "").length > MAX_BODY) {
-    return json(413, { error: "too_large" });
-  }
-
-  let data;
-  try {
-    data = JSON.parse(event.body ?? "{}");
-  } catch {
-    return json(400, { error: "invalid_json" });
-  }
+  const body = parseBody(event);
+  if (body.response) return body.response;
+  const data = body.data;
 
   const titleId = String(data.titleId ?? "");
   const nickname = String(data.nickname ?? "").trim();
@@ -289,27 +171,14 @@ async function createComment(event) {
     return json(400, { error: "invalid_text" });
   }
 
-  const ip = event.requestContext.http.sourceIp ?? "unknown";
+  // Baneo y CAPTCHA (ver screenClient en shared/common.mjs)
+  const client = await screenClient(event, data.turnstileToken);
+  if (client.response) return client.response;
+  const { ip, ipId } = client;
 
-  // Identificador estable de la IP, solo para poder banearla. Se guarda con
-  // el comentario (nunca se expone) y permite al script de moderación
-  // banear a quien lo escribió sin conocer su IP en claro.
-  const ipId = await ipDigest(`ban|${ip}`);
-  const banned = await db.send(
-    new GetCommand({ TableName: TABLE, Key: { titleId: "#bans", sk: ipId } })
-  );
-  if (banned.Item) return json(403, { error: "forbidden" });
-
-  // CAPTCHA (Cloudflare Turnstile), verificado en el servidor. Va después
-  // de la validación barata y antes de los contadores: un token falso no
-  // gasta cupo.
-  const captcha = await verifyTurnstile(data.turnstileToken, ip);
-  if (captcha === "unavailable") {
-    return json(503, { error: "captcha_unavailable" });
-  }
-  if (captcha !== "ok") return json(403, { error: "captcha_failed" });
-
-  // Topes diarios (día en UTC). Solo cuentan los comentarios válidos.
+  // Topes diarios (día en UTC). Cuentan todos los intentos que llegan hasta
+  // aquí, también los que luego bloquea el filtro; los que no pasan la
+  // validación, el baneo o el CAPTCHA no gastan cupo.
   // Primero el de la IP: así una sola IP nunca puede gastar más de IP_CAP
   // del tope global.
   const day = new Date().toISOString().slice(0, 10);
