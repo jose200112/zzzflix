@@ -12,6 +12,9 @@ Qué hace:
     (o todo o nada), así que la media nunca queda descuadrada.
   - El baneo se guarda como un hash de la IP (la misma función que usa la
     Lambda). Nunca se ve ni se guarda la IP en claro.
+  - 'rep' lista los comentarios reportados con el botón de la web. Un reporte
+    nunca oculta ni borra nada solo: aquí decides si descartarlo, borrar el
+    comentario o banear a su autor.
 """
 
 import hashlib
@@ -186,6 +189,67 @@ def list_bans():
     return sorted(out["Items"], key=lambda i: i["bannedAt"])
 
 
+# --- Reportes -----------------------------------------------------
+
+
+def _query_reports(**extra):
+    """Todas las filas de la partición #reports (una por persona y comentario)."""
+    rows, kwargs = [], {
+        "KeyConditionExpression": "titleId = :t",
+        "ExpressionAttributeValues": {":t": "#reports"},
+        **extra,
+    }
+    while True:
+        out = table.query(**kwargs)
+        rows += out["Items"]
+        if "LastEvaluatedKey" not in out:
+            return rows
+        kwargs["ExclusiveStartKey"] = out["LastEvaluatedKey"]
+
+
+def drop_reports(rows):
+    for r in rows:
+        table.delete_item(Key={"titleId": "#reports", "sk": r["sk"]})
+
+
+def fetch_reports():
+    """Comentarios reportados, del más reportado al menos. Cada comentario trae
+    'reports' (cuántas personas lo han reportado) y '_rows' (sus filas de
+    reporte). Los reportes de comentarios que ya no existen se limpian solos."""
+    groups = {}
+    for r in _query_reports():
+        groups.setdefault((r["commentTitle"], r["commentSk"]), []).append(r)
+    items, orphans = [], 0
+    for (title, sk), rows in groups.items():
+        comment = table.get_item(Key={"titleId": title, "sk": sk}).get("Item")
+        if not comment or comment.get("status") != "approved":
+            drop_reports(rows)
+            orphans += len(rows)
+            continue
+        comment["reports"] = len(rows)
+        comment["_rows"] = rows
+        items.append(comment)
+    if orphans:
+        print(f"  (Limpiados {orphans} reporte(s) de comentarios que ya no existen.)")
+    return sorted(items, key=lambda i: (-i["reports"], i["createdAt"]))
+
+
+def show_reports(items):
+    print(f"\n=== Reportados ({len(items)}) ===")
+    for n, i in enumerate(items, 1):
+        stars = f"★{int(i['rating'])}" if "rating" in i else "sin nota"
+        auto = " [auto]" if i.get("moderation") == "guardrails" else ""
+        print(
+            f"{n:>3}) {i['reports']} reporte(s) · película {i['titleId']} · "
+            f"{i['createdAt'][:16]} · {clean(i['nickname'])} · {stars}{auto}"
+        )
+        print(f"     {clean(i['text'])}")
+
+
+def count_reports():
+    return len(_query_reports(ProjectionExpression="sk"))
+
+
 # --- Interruptor de emergencia de los comentarios -----------------
 
 SWITCH_KEY = {"titleId": "#flags", "sk": "comments"}
@@ -224,6 +288,7 @@ def usage():
     for label, sk in (
         ("Comentarios que han llegado al filtro (tope: daily_comment_cap)", f"global#{day}"),
         ("Ejecuciones de Guardrails (tope: guardrail_daily_cap)", f"guardrail#{day}"),
+        ("Reportes recibidos (tope: daily_report_cap)", f"rglobal#{day}"),
     ):
         item = table.get_item(Key={"titleId": "#limits", "sk": sk}).get("Item")
         print(f"  {label}: {int(item['hits']) if item else 0}")
@@ -239,6 +304,9 @@ Comandos (los números son los de la lista que ves):
   p           ver pendientes
   ok          ver aprobados ([auto] = publicado solo por el filtro de IA)
   x 2         borrar un aprobado (le resta su nota a la media)
+  rep         ver comentarios reportados (los más reportados primero)
+              y en esa vista: d 3 descarta los reportes del 3 (el comentario
+              se queda), x 3 borra el comentario, b 3 banea a su autor
   banip IP    banear una IP (por ejemplo la que ves en los logs de la API)
   bans        ver baneos
   unban 1     quitar un baneo (de la lista 'bans')
@@ -266,6 +334,9 @@ def main():
     items = fetch("pending")
     show(items, "Pendientes")
     bans = []
+    pending_reports = count_reports()
+    if pending_reports:
+        print(f"\n  Reportes sin revisar: {pending_reports} (escribe rep)")
     print(HELP)
 
     while True:
@@ -299,6 +370,9 @@ def main():
             elif cmd == "ok":
                 mode, items = "approved", fetch("approved")
                 show(items, "Aprobados")
+            elif cmd == "rep":
+                mode, items = "reports", fetch_reports()
+                show_reports(items)
             elif cmd == "bans":
                 mode, bans = "bans", list_bans()
                 print(f"\n=== Baneos ({len(bans)}) ===")
@@ -312,10 +386,30 @@ def main():
                     table.delete_item(Key={"titleId": "#bans", "sk": bans[n]["sk"]})
                     print(f"  Baneo {n + 1} quitado.")
                 bans = list_bans()
+            elif cmd == "d" and mode != "reports":
+                print("  Esto solo funciona en la vista de reportados (rep).")
+            elif cmd == "d" and args:
+                for n in numbers(args, len(items)):
+                    drop_reports(items[n]["_rows"])
+                    print(f"  Reportes de {n + 1} descartados (el comentario se queda).")
+                items = fetch_reports()
+                show_reports(items)
+            elif cmd == "b" and len(args) == 1 and mode == "reports":
+                for n in numbers(args, len(items)):
+                    ident = items[n].get("ipId")
+                    if not ident:
+                        print("  Este comentario no tiene ipId: no se puede banear.")
+                        continue
+                    ok = input(
+                        f"  ¿Banear al autor de '{clean(items[n]['nickname'])}'? (s/N) "
+                    )
+                    if ok.lower() == "s":
+                        ban(ident)
+                        print(f"  Autor baneado. Si procede, borra el comentario con 'x {n + 1}'.")
             elif cmd in ("a", "r", "b") and mode != "pending":
                 print("  Esto solo funciona en la vista de pendientes (p).")
-            elif cmd in ("x",) and mode != "approved":
-                print("  Esto solo funciona en la vista de aprobados (ok).")
+            elif cmd == "x" and mode not in ("approved", "reports"):
+                print("  Esto solo funciona en la vista de aprobados (ok) o de reportados (rep).")
             elif cmd == "a" and args:
                 for n in numbers(args, len(items)):
                     approve(items[n])
@@ -341,8 +435,14 @@ def main():
                 for n in numbers(args, len(items)):
                     delete(items[n], "approved")
                     print(f"  Borrado {n + 1}.")
-                items = fetch("approved")
-                show(items, "Aprobados")
+                    if mode == "reports":
+                        drop_reports(items[n]["_rows"])
+                if mode == "reports":
+                    items = fetch_reports()
+                    show_reports(items)
+                else:
+                    items = fetch("approved")
+                    show(items, "Aprobados")
             else:
                 print("  No entiendo. Escribe h para ver la ayuda.")
         except ClientError as e:

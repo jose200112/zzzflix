@@ -68,10 +68,21 @@ resource "aws_dynamodb_table" "comments" {
 
 # --- Lambda -------------------------------------------------------
 
+# El zip lleva dos carpetas: la Lambda y el código común (shared/), para que
+# "import ... from '../shared/common.mjs'" funcione igual en local y en AWS.
 data "archive_file" "comments" {
   type        = "zip"
-  source_file = "${path.module}/lambda/comments/index.mjs"
   output_path = "${path.module}/build/comments.zip"
+
+  source {
+    content  = file("${path.module}/lambda/comments/index.mjs")
+    filename = "comments/index.mjs"
+  }
+
+  source {
+    content  = file("${path.module}/lambda/shared/common.mjs")
+    filename = "shared/common.mjs"
+  }
 }
 
 data "aws_iam_policy_document" "comments_assume" {
@@ -135,7 +146,7 @@ resource "aws_lambda_function" "comments" {
   function_name = "${var.project_name}-comments"
   role          = aws_iam_role.comments.arn
   runtime       = "nodejs24.x"
-  handler       = "index.handler"
+  handler       = "comments/index.handler"
   timeout       = 10 # Turnstile (hasta 2,5 s) + Guardrails (hasta 4 s)
   memory_size   = 128
 
@@ -239,10 +250,17 @@ resource "aws_apigatewayv2_stage" "default" {
     throttling_rate_limit  = 1
   }
 
+  route_settings {
+    route_key              = "POST /reports"
+    throttling_burst_limit = 2
+    throttling_rate_limit  = 1
+  }
+
   depends_on = [
     aws_apigatewayv2_route.get_comments,
     aws_apigatewayv2_route.post_comments,
     aws_apigatewayv2_route.get_ratings,
+    aws_apigatewayv2_route.post_reports,
   ]
 }
 
