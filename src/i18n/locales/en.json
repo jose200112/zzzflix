@@ -68,8 +68,16 @@
     "loading": "Loading comments…",
     "empty": "No comments yet. Be the first!",
     "ratingAria": "Rating: {{rating}} out of 5",
-    "sent": "Thank you! If your comment is published automatically, it will appear when you reload the page; otherwise it will be reviewed manually.",
+    "sentPublished": "Thank you! Your comment is now published.",
+    "sentPending": "Thank you! The automatic filter is not available right now, so your comment will be reviewed manually before it is published.",
     "completeCaptcha": "Please complete the verification before sending.",
+    "report": {
+      "button": "Report",
+      "confirm": "Complete the verification to report this comment. A person will review it; nothing is removed automatically.",
+      "cancel": "Cancel",
+      "sending": "Sending report…",
+      "thanks": "Thank you, we have received your report. A person will review it."
+    },
     "errors": {
       "invalid_nickname": "The nickname must be 2 to 20 characters long: letters, numbers, spaces, _ or -.",
       "invalid_rating": "Choose how sleepy it made you, from 1 to 5.",
@@ -79,6 +87,8 @@
       "content_blocked": "The automatic filter blocked your comment. Please rewrite it without insults, offensive content or personal data (email, phone…).",
       "captcha_failed": "We couldn't verify that you are a person. Please try again.",
       "captcha_unavailable": "Verification is not available right now. Please try again in a while.",
+      "report_limit": "Today's report limit has been reached. Please try again tomorrow.",
+      "not_found": "This comment is no longer available.",
       "comments_disabled": "Comments are temporarily closed.",
       "throttled": "Too many requests in a row. Wait a few seconds.",
       "network": "Could not connect. Check your connection.",

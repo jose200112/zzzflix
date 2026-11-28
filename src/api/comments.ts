@@ -10,6 +10,7 @@ export const SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as
 export const COMMENTS_ENABLED = Boolean(API_URL && SITE_KEY)
 
 export type Comment = {
+  id: string // clave del comentario: el botón de reportar la devuelve a la API
   nickname: string
   text: string
   rating?: number // los comentarios antiguos no tienen nota
@@ -24,7 +25,10 @@ type NewComment = {
   turnstileToken: string
 }
 
-export type PostResult = { ok: true } | { ok: false; error: string }
+// status: 'published' | 'pending' al comentar; vacío al reportar
+export type PostResult =
+  | { ok: true; status: string }
+  | { ok: false; error: string }
 
 export async function fetchComments(titleId: number): Promise<Comment[]> {
   const res = await fetch(`${API_URL}/comments?titleId=${titleId}`)
@@ -49,20 +53,39 @@ export async function fetchRatings(): Promise<Record<number, Rating>> {
   )
 }
 
-export async function postComment(input: NewComment): Promise<PostResult> {
+// POST de JSON a la API. Convierte la respuesta en un resultado sencillo.
+async function postJson(path: string, payload: unknown): Promise<PostResult> {
   try {
-    const res = await fetch(`${API_URL}/comments`, {
+    const res = await fetch(`${API_URL}${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...input, titleId: String(input.titleId) }),
+      body: JSON.stringify(payload),
     })
-    if (res.ok) return { ok: true }
+    const data = (await res.json().catch(() => ({}))) as {
+      status?: string
+      error?: string
+    }
+    if (res.ok) return { ok: true, status: data.status ?? '' }
 
-    const data = (await res.json().catch(() => ({}))) as { error?: string }
     // Si frena API Gateway (no la Lambda), no viene campo "error"
     if (!data.error && res.status === 429) return { ok: false, error: 'throttled' }
     return { ok: false, error: data.error ?? 'unknown' }
   } catch {
     return { ok: false, error: 'network' }
   }
+}
+
+export function postComment(input: NewComment): Promise<PostResult> {
+  return postJson('/comments', { ...input, titleId: String(input.titleId) })
+}
+
+type NewReport = {
+  titleId: number
+  commentId: string
+  turnstileToken: string
+}
+
+// Reportar un comentario: no lo oculta ni lo borra, solo avisa para que lo revise una persona
+export function postReport(input: NewReport): Promise<PostResult> {
+  return postJson('/reports', { ...input, titleId: String(input.titleId) })
 }
