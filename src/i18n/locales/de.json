@@ -68,8 +68,16 @@
     "loading": "Kommentare werden geladen…",
     "empty": "Noch keine Kommentare. Sei der Erste!",
     "ratingAria": "Bewertung: {{rating}} von 5",
-    "sent": "Danke! Wird dein Kommentar automatisch veröffentlicht, erscheint er nach dem Neuladen der Seite; andernfalls wird er manuell geprüft.",
+    "sentPublished": "Danke! Dein Kommentar ist jetzt veröffentlicht.",
+    "sentPending": "Danke! Der automatische Filter ist gerade nicht verfügbar, daher wird dein Kommentar vor der Veröffentlichung manuell geprüft.",
     "completeCaptcha": "Bitte schließe die Verifizierung ab, bevor du sendest.",
+    "report": {
+      "button": "Melden",
+      "confirm": "Schließe die Verifizierung ab, um diesen Kommentar zu melden. Eine Person prüft ihn; es wird nichts automatisch gelöscht.",
+      "cancel": "Abbrechen",
+      "sending": "Meldung wird gesendet…",
+      "thanks": "Danke, wir haben deine Meldung erhalten. Eine Person wird sie prüfen."
+    },
     "errors": {
       "invalid_nickname": "Der Spitzname muss 2 bis 20 Zeichen lang sein: Buchstaben, Zahlen, Leerzeichen, _ oder -.",
       "invalid_rating": "Wähle, wie sehr dich das eingeschläfert hat, von 1 bis 5.",
@@ -79,6 +87,8 @@
       "content_blocked": "Der automatische Filter hat deinen Kommentar blockiert. Bitte formuliere ihn ohne Beleidigungen, anstößige Inhalte oder persönliche Daten (E-Mail, Telefon …) neu.",
       "captcha_failed": "Wir konnten nicht bestätigen, dass du ein Mensch bist. Bitte versuche es erneut.",
       "captcha_unavailable": "Die Verifizierung ist gerade nicht verfügbar. Versuche es in Kürze noch einmal.",
+      "report_limit": "Das Meldungslimit für heute ist erreicht. Versuche es morgen noch einmal.",
+      "not_found": "Dieser Kommentar ist nicht mehr verfügbar.",
       "comments_disabled": "Die Kommentare sind vorübergehend geschlossen.",
       "throttled": "Zu viele Anfragen hintereinander. Warte einen Moment.",
       "network": "Verbindung fehlgeschlagen. Prüfe deine Internetverbindung.",

@@ -1,53 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { COMMENTS_ENABLED, SITE_KEY, fetchComments, postComment } from '../api/comments'
+import { loadTurnstile } from '../api/turnstile'
 import type { Comment } from '../api/comments'
+import ReportButton from './ReportButton'
 import './Comments.css'
 import { useTranslation } from 'react-i18next'
 import { useLocale } from '../i18n'
-
-const SCRIPT_SRC =
-  'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
-
-type TurnstileApi = {
-  render: (
-    el: HTMLElement,
-    options: {
-      sitekey: string
-      theme: 'auto' | 'light' | 'dark'
-      language: string
-      callback: (token: string) => void
-      'expired-callback': () => void
-      'error-callback': () => void
-    },
-  ) => string
-  reset: (widgetId: string) => void
-  remove: (widgetId: string) => void
-}
-
-declare global {
-  interface Window {
-    turnstile?: TurnstileApi
-  }
-}
-
-// Carga el script de Turnstile una sola vez
-function loadTurnstile(): Promise<void> {
-  if (window.turnstile) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${SCRIPT_SRC}"]`,
-    )
-    const script = existing ?? document.createElement('script')
-    script.addEventListener('load', () => resolve())
-    script.addEventListener('error', () => reject(new Error('turnstile_script')))
-    if (!existing) {
-      script.src = SCRIPT_SRC
-      script.async = true
-      document.head.appendChild(script)
-    }
-  })
-}
 
 // Mismas reglas que la Lambda; aquí solo sirven para avisar antes.
 // La validación que protege de verdad es la del servidor.
@@ -175,10 +134,17 @@ function Comments({ titleId }: CommentsProps) {
     if (result.ok) {
       setText('')
       setRating(0)
+      const published = result.status === 'published'
       setMessage({
         kind: 'ok',
-        key: 'comments.sent',
+        key: published ? 'comments.sentPublished' : 'comments.sentPending',
       })
+      // Publicado al instante: se recarga la lista para que ya aparezca
+      if (published) {
+        fetchComments(titleId)
+          .then(setComments)
+          .catch(() => {})
+      }
     } else {
       const key = `comments.errors.${result.error}`
       setMessage({
@@ -269,7 +235,7 @@ function Comments({ titleId }: CommentsProps) {
       {comments !== null && comments.length > 0 && (
         <ul className="comment-list">
           {comments.map((c) => (
-            <li key={`${c.createdAt}-${c.nickname}`} className="comment">
+            <li key={c.id} className="comment">
               <div className="comment-meta">
                 <strong>{c.nickname}</strong>
                 {c.rating ? (
@@ -281,6 +247,7 @@ function Comments({ titleId }: CommentsProps) {
               </div>
               {/* React escapa el texto: nunca se interpreta como HTML */}
               <p>{c.text}</p>
+              <ReportButton titleId={titleId} commentId={c.id} />
             </li>
           ))}
         </ul>

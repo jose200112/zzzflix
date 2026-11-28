@@ -68,8 +68,16 @@
     "loading": "Cargando comentarios…",
     "empty": "Aún no hay comentarios. ¡Sé el primero!",
     "ratingAria": "Nota: {{rating}} de 5",
-    "sent": "¡Gracias! Si tu comentario se publica automáticamente, aparecerá al recargar la página; si no, se revisará manualmente.",
+    "sentPublished": "¡Gracias! Tu comentario ya está publicado.",
+    "sentPending": "¡Gracias! El filtro automático no está disponible ahora mismo, así que tu comentario se revisará manualmente antes de publicarse.",
     "completeCaptcha": "Completa la verificación antes de enviar.",
+    "report": {
+      "button": "Reportar",
+      "confirm": "Completa la verificación para reportar este comentario. Lo revisará una persona; no se borra automáticamente.",
+      "cancel": "Cancelar",
+      "sending": "Enviando reporte…",
+      "thanks": "Gracias, hemos recibido tu reporte. Lo revisará una persona."
+    },
     "errors": {
       "invalid_nickname": "El apodo debe tener entre 2 y 20 caracteres: letras, números, espacios, _ o -.",
       "invalid_rating": "Elige cuánto te ha dormido, de 1 a 5.",
@@ -79,6 +87,8 @@
       "content_blocked": "El filtro automático ha bloqueado tu comentario. Reescríbelo sin insultos, contenido ofensivo ni datos personales (correo, teléfono…).",
       "captcha_failed": "No hemos podido verificar que eres una persona. Inténtalo de nuevo.",
       "captcha_unavailable": "La verificación no está disponible ahora mismo. Inténtalo en un rato.",
+      "report_limit": "Se ha alcanzado el límite de reportes por hoy. Inténtalo mañana.",
+      "not_found": "Este comentario ya no está disponible.",
       "comments_disabled": "Los comentarios están cerrados temporalmente.",
       "throttled": "Demasiadas peticiones seguidas. Espera unos segundos.",
       "network": "No se ha podido conectar. Revisa tu conexión.",
